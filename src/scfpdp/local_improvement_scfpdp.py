@@ -4,9 +4,9 @@ from .neighbourhood import Neighbourhood
 from .step_strategy import StepStrategy
 
 
-class VRPLocalImprovement(Method):
+class SCFPDPLocalImprovement(Method):
     """
-    Adapter that allows VRP neighbourhood + step strategy to run as a pymhlib Method.
+    Adapter that allows SCFPDP neighbourhood + step strategy to run as a pymhlib Method.
     Used for GVNS local-improvement (meths_li).
     """
 
@@ -14,6 +14,7 @@ class VRPLocalImprovement(Method):
         super().__init__()
         self.neighbourhood = neighbourhood
         self.strategy = strategy
+        self.best_result = None
 
     def apply(self, sol: Solution):
         """
@@ -22,10 +23,10 @@ class VRPLocalImprovement(Method):
         neighbours = self.neighbourhood.generate(sol)
         chosen = self.strategy.choose(sol, neighbours)
 
-        result = self.Result()
+        self.best_result = self.Result()
 
         if chosen and chosen.is_better(sol):
             sol.copy_from(chosen)
-            result.changed = True  # pymhlib uses 'changed' to reset VND loops
+            self.best_result.changed = True  # pymhlib uses 'changed' to reset VND loops
 
-        return result
+        return self.best_result

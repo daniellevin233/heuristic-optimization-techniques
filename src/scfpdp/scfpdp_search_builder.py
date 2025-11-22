@@ -1,22 +1,22 @@
 from pymhlib.gvns import GVNS
 from pymhlib.solution import Solution
-from .local_improvement_vrp import VRPLocalImprovement
+from .local_improvement_scfpdp import SCFPDPLocalImprovement
 
 
-class VRPSearchBuilder:
-    """Builder pattern for configuring a GVNS for VRP optimization."""
+class SCFPDPSearchBuilder:
+    """Builder pattern for configuring a GVNS for SCFPDP optimization."""
 
     def __init__(self, initial: Solution):
         self.initial = initial
         self.construct_methods = []
-        self.local_improvements: list[VRPLocalImprovement] = []
+        self.local_improvements: list[SCFPDPLocalImprovement] = []
         self.shaking_methods = []
 
     def with_construction(self, m):
         self.construct_methods.append(m)
         return self
 
-    def with_local_improvement(self, li: VRPLocalImprovement):
+    def with_local_improvement(self, li: SCFPDPLocalImprovement):
         self.local_improvements.append(li)
         return self
 
@@ -25,7 +25,7 @@ class VRPSearchBuilder:
         return self
 
     def build(self) -> GVNS:
-        """Return a complete GVNS configured for VRP."""
+        """Return a complete GVNS configured for SCFPDP."""
         return GVNS(
             sol=self.initial,
             meths_ch=self.construct_methods,

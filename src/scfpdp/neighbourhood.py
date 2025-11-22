@@ -9,7 +9,7 @@ class Neighbourhood(ABC):
     @abstractmethod
     def generate(self, solution: Solution) -> Iterable[Solution]:
         """
-        Yield neighbouring solutions for a given VRP solution.
+        Yield neighbouring solutions for a given SCFPDP solution.
         Should NOT evaluate improvements or pick best moves.
         """
         pass
