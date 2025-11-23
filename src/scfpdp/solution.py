@@ -21,13 +21,16 @@ class Route:
         self.distance = route_distance
 
     def insert_location(self, location_idx: int, at: int) -> None:
-        assert location_idx not in self.route, f"Cannot insert location {location_idx} that has already been added to the route: {self.route}"
+        assert location_idx not in self.route[1:-1], f"Cannot insert location {location_idx} that has already been added to the route: {self.route}"
         self.route.insert(at, location_idx)
         # serve the request either by its pickup or dropoff location if not there already
         if location_idx % self.instance.n not in self.served_requests:
             self.served_requests.append(location_idx % self.instance.n)
         # todo delta evaluation will integrate here to replace this inefficient recalculation at every insert
         self.recompute_route_distance()
+
+    def can_take_request(self, request_id: int) -> bool:
+        return self.get_current_capacity() + self.instance.demands[request_id] <= self.instance.C
 
     def serve_request(self, pickup_idx: int, pickup_at: int, dropoff_distance_from_pickup: int) -> None:
         assert pickup_at <= len(self.route), f"Pickup insertion index is out of range: {pickup_at}; route length: {len(self.route)}"
@@ -93,8 +96,8 @@ class SCFPDPSolution(Solution):
             is_valid = False
             error = e.args[0]
         lines = [f"SCFPDPSolution({f'Objective: {self.calc_objective():.2f}' if is_valid else f'Invalid solution: "{error}"'})"]
-        for route_i, route in enumerate(self.routes):
-            lines.append(f"  Route {route_i}: {route}")
+        for vehicle_i, route in enumerate(self.routes):
+            lines.append(f"  Vehicle {vehicle_i}: {route}")
         total_requests = sum(route.n_served_requests() for route in self.routes)
         lines.append(f"  Total requests served: {total_requests}/{self.inst.n} (min required: {self.inst.gamma})")
         return '\n'.join(lines)
