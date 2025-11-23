@@ -121,14 +121,6 @@ class SCFPDPInstance:
 
         assert np.array_equal(self.distance_matrix, self.distance_matrix.T)
 
-    def compute_route_distance(self, route: list[int]) -> float:
-        from_depot = self.depot_location.distance_from(self.pickup_locations[route[0]])
-        to_depot = self.dropoff_locations[route[-1]].distance_from(self.depot_location)
-        route_distance = 0
-        for i in route[1:-1]:
-            route_distance += self.pickup_locations[i].distance_from(self.dropoff_locations[i])
-        return from_depot + route_distance + to_depot
-
 
     def __repr__(self):
         return (f"SCFPDPInstance(n_requests={self.n}, n_vehicles={self.n_K}, capacity={self.C}, "
@@ -138,4 +130,3 @@ if __name__ == '__main__':
     instance = SCFPDPInstance('10/test_instance_small.txt')
     print(instance)
     print(instance.distance_matrix)
-    print(instance.compute_route_distance(list(range(20))))
