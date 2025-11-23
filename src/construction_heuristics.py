@@ -77,6 +77,6 @@ class RandomizedConstructionHeuristic(GreedyConstructionHeuristic):
 
 if __name__ == '__main__':
     # initial_solution = SCFPDPSolution(inst=SCFPDPInstance('10/test_instance_small.txt'))
-    initial_solution = SCFPDPSolution(inst=SCFPDPInstance('50/train/instance1_nreq50_nveh2_gamma50.txt'))
+    initial_solution = SCFPDPSolution(inst=SCFPDPInstance('100/competition/instance61_nreq100_nveh2_gamma91.txt'))
     initial_solution.initialize(0)
     print(initial_solution)

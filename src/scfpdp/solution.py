@@ -10,6 +10,7 @@ class Route:
         self.route: list[int] = [0, 0]  # start and end every route at depot
         self.distance: int = 0
         self.served_requests: list[int] = []
+        self.pickedup_requests: set[int] = set()
 
     def __repr__(self):
         return f"Served requests: {{{', '.join(str(i) for i in self.served_requests)}}} along the route: {self.route} (distance={self.distance:.2f}; capacity={self.get_current_capacity()}/{self.instance.C})"
@@ -24,24 +25,29 @@ class Route:
         assert location_idx not in self.route[1:-1], f"Cannot insert location {location_idx} that has already been added to the route: {self.route}"
         self.route.insert(at, location_idx)
         # serve the request either by its pickup or dropoff location if not there already
-        if location_idx % self.instance.n not in self.served_requests:
-            self.served_requests.append(location_idx % self.instance.n)
+        if location_idx < self.instance.n:  # this is a pickup location
+            assert location_idx not in self.served_requests, f"Cannot serve a request {location_idx} that has already been served: {self.served_requests}"
+            assert location_idx not in self.pickedup_requests, f"Cannot pick up a request {location_idx} that has already been picked up: {self.pickedup_requests}"
+            self.served_requests.append(location_idx)
+            self.pickedup_requests.add(location_idx)
+        else:  # this is a dropoff - remove the request from the pickedup list
+            self.pickedup_requests.remove(location_idx % self.instance.n)
         # todo delta evaluation will integrate here to replace this inefficient recalculation at every insert
         self.recompute_route_distance()
 
     def can_take_request(self, request_id: int) -> bool:
         return self.get_current_capacity() + self.instance.demands[request_id] <= self.instance.C
 
-    def serve_request(self, pickup_idx: int, pickup_at: int, dropoff_distance_from_pickup: int) -> None:
+    def serve_request(self, request_id: int, pickup_at: int, dropoff_distance_from_pickup: int) -> None:
         assert pickup_at <= len(self.route), f"Pickup insertion index is out of range: {pickup_at}; route length: {len(self.route)}"
         assert dropoff_distance_from_pickup > 0, f"Dropoff must be at least one position to the right from the pickup"
         dropoff_at = pickup_at + dropoff_distance_from_pickup
         assert dropoff_at <= len(self.route) + 1, f"Dropoff insertion index is out of range: {dropoff_at}; route length: {len(self.route)}"
-        self.insert_location(pickup_idx, pickup_at)
-        self.insert_location(pickup_idx + self.instance.n, dropoff_at)
+        self.insert_location(request_id, pickup_at)
+        self.insert_location(request_id + self.instance.n, dropoff_at)
 
     def get_current_capacity(self) -> int:
-        return sum(self.instance.demands[i] for i in self.served_requests)
+        return sum(self.instance.demands[i] for i in self.pickedup_requests)
 
     def n_served_requests(self) -> int:
         return len(self.served_requests)
