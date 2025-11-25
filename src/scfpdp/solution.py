@@ -7,36 +7,35 @@ from src.scfpdp.instance import SCFPDPInstance
 class Route:
     def __init__(self, instance: SCFPDPInstance):
         self.instance = instance
-        self.route: list[int] = [0, 0]  # start and end every route at depot
+        self.route: list[int] = []
         self.distance: int = 0
         self.served_requests: list[int] = []
-        self.pickedup_requests: set[int] = set()
 
     def __repr__(self):
-        return f"Served requests: {{{', '.join(str(i) for i in self.served_requests)}}} along the route: {self.route} (distance={self.distance:.2f}; capacity={self.get_pickedup_capacity()}/{self.instance.C})"
+        return f"Served requests: {{{', '.join(str(i) for i in self.served_requests)}}} along the route: {["depot"] + self.route + ["depot"]} (distance={self.distance:.2f}; capacity={self._get_carried_capacity()}/{self.instance.C})"
+
+    def __len__(self) -> int:
+        return len(self.route)
 
     def recompute_route_distance(self) -> None:
         route_distance = 0
-        for i in self.route[:-1]:
+        route_with_depots = [0] + self.route + [0]
+        for i in route_with_depots[:-1]:
             route_distance += self.instance.distance_matrix[i][i + 1]
         self.distance = route_distance
 
     def insert_location(self, location_idx: int, at: int) -> None:
-        assert location_idx not in self.route[1:-1], f"Cannot insert location {location_idx} that has already been added to the route: {self.route}"
+        assert location_idx not in self.route, f"Cannot insert location {location_idx} that has already been added to the route: {self.route}"
         self.route.insert(at, location_idx)
-        # serve the request either by its pickup or dropoff location if not there already
-        if location_idx < self.instance.n:  # this is a pickup location
+        # serve the request if it's a pickup index
+        if location_idx < self.instance.n:
             assert location_idx not in self.served_requests, f"Cannot serve a request {location_idx} that has already been served: {self.served_requests}"
-            assert location_idx not in self.pickedup_requests, f"Cannot pick up a request {location_idx} that has already been picked up: {self.pickedup_requests}"
             self.served_requests.append(location_idx)
-            self.pickedup_requests.add(location_idx)
-        else:  # this is a dropoff - remove the request from the pickedup list
-            self.pickedup_requests.remove(location_idx % self.instance.n)
         # todo delta evaluation will integrate here to replace this inefficient recalculation at every insert
         self.recompute_route_distance()
 
-    def can_take_request(self, request_id: int) -> bool:
-        return self.get_pickedup_capacity() + self.instance.demands[request_id] <= self.instance.C
+    def can_take_request(self, request_id: int, at_position: int) -> bool:
+        return self.get_capacity_at_position(at_position) + self.instance.demands[request_id] <= self.instance.C
 
     def serve_request(self, request_id: int, pickup_at: int, dropoff_distance_from_pickup: int) -> None:
         assert pickup_at <= len(self.route), f"Pickup insertion index is out of range: {pickup_at}; route length: {len(self.route)}"
@@ -46,21 +45,28 @@ class Route:
         self.insert_location(request_id, pickup_at)
         self.insert_location(request_id + self.instance.n, dropoff_at)
 
-    def get_pickedup_capacity(self) -> int:
-        return sum(self.instance.demands[i] for i in self.pickedup_requests)
+    def _get_carried_capacity(self) -> int:
+        return self.get_capacity_at_position(len(self.route))
+
+    def get_capacity_at_position(self, position: int) -> int:
+        """
+        Calculate vehicle capacity at a specific position in the route given what it has picked up so far
+            but has not dropped off yet
+        """
+        capacity = 0
+        for location_idx in self.route[:position]:
+            if location_idx < self.instance.n:  # pickup
+                capacity += self.instance.demands[location_idx]
+            else:  # dropoff
+                capacity -= self.instance.demands[location_idx - self.instance.n]
+        return capacity
 
     def n_served_requests(self) -> int:
         return len(self.served_requests)
 
     def check(self) -> None:
-        if len(self.route) < 2:
-            raise ValueError(f"Route too short: {len(self.route)} < 2; it must contain depot as start and end at the very least")
-
-        if self.route[0] != 0:
-            raise ValueError(f"Route does not start at depot: first location is {self.route[0]}")
-
-        if self.route[-1] != 0:
-            raise ValueError(f"Route does not end at depot: last location is {self.route[-1]} ({self.route})")
+        if len(self.route) % 2 !=  0:
+            raise ValueError(f"Route of odd length: {len(self.route)}; the length must be even")
 
         for request_id in self.served_requests:
             pickup_idx = request_id
@@ -78,9 +84,8 @@ class Route:
             if pickup_pos >= dropoff_pos:
                 raise ValueError(f"Request {request_id}: dropoff at position {dropoff_pos} must come after pickup at position {pickup_pos}")
 
-        current_capacity = self.get_pickedup_capacity()
-        if current_capacity > self.instance.C:
-            raise ValueError(f"Route capacity exceeded: {current_capacity} > {self.instance.C}")
+        if (current_capacity := self._get_carried_capacity()) != 0:
+            raise ValueError(f"Route capacity non-negative: {current_capacity}")
 
 
 
