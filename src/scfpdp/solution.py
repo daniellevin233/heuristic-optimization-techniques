@@ -13,7 +13,7 @@ class Route:
         self.pickedup_requests: set[int] = set()
 
     def __repr__(self):
-        return f"Served requests: {{{', '.join(str(i) for i in self.served_requests)}}} along the route: {self.route} (distance={self.distance:.2f}; capacity={self.get_current_capacity()}/{self.instance.C})"
+        return f"Served requests: {{{', '.join(str(i) for i in self.served_requests)}}} along the route: {self.route} (distance={self.distance:.2f}; capacity={self.get_pickedup_capacity()}/{self.instance.C})"
 
     def recompute_route_distance(self) -> None:
         route_distance = 0
@@ -36,7 +36,7 @@ class Route:
         self.recompute_route_distance()
 
     def can_take_request(self, request_id: int) -> bool:
-        return self.get_current_capacity() + self.instance.demands[request_id] <= self.instance.C
+        return self.get_pickedup_capacity() + self.instance.demands[request_id] <= self.instance.C
 
     def serve_request(self, request_id: int, pickup_at: int, dropoff_distance_from_pickup: int) -> None:
         assert pickup_at <= len(self.route), f"Pickup insertion index is out of range: {pickup_at}; route length: {len(self.route)}"
@@ -46,7 +46,7 @@ class Route:
         self.insert_location(request_id, pickup_at)
         self.insert_location(request_id + self.instance.n, dropoff_at)
 
-    def get_current_capacity(self) -> int:
+    def get_pickedup_capacity(self) -> int:
         return sum(self.instance.demands[i] for i in self.pickedup_requests)
 
     def n_served_requests(self) -> int:
@@ -78,7 +78,7 @@ class Route:
             if pickup_pos >= dropoff_pos:
                 raise ValueError(f"Request {request_id}: dropoff at position {dropoff_pos} must come after pickup at position {pickup_pos}")
 
-        current_capacity = self.get_current_capacity()
+        current_capacity = self.get_pickedup_capacity()
         if current_capacity > self.instance.C:
             raise ValueError(f"Route capacity exceeded: {current_capacity} > {self.instance.C}")
 
