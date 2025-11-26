@@ -127,7 +127,7 @@ class SCFPDPSolution(Solution):
         for route in self.routes:
             total_distance += route.distance
             sum_of_squares += route.distance**2
-        jain = total_distance / (self.inst.n * sum_of_squares)
+        jain = total_distance / (self.inst.n_K * sum_of_squares)
         return total_distance + self.inst.rho * (1 - jain)
 
     def initialize(self, k):

@@ -9,12 +9,17 @@ from src.scfpdp.solution import SCFPDPSolution, Route
 
 class ConstructionHeuristic(ABC):
 
-    def __init__(self, instance: SCFPDPInstance) -> None:
-        self.instance = instance
+    def __init__(self, initial_solution: SCFPDPSolution) -> None:
+        self.instance: SCFPDPInstance = initial_solution.inst
+        self.solution: SCFPDPSolution = initial_solution
 
     @abstractmethod
-    def _select_insertion_position(self, route: Route) -> int:
+    def _select_next_request(self, route: Route, excluded_requests: set[int], insertion_position: int) -> int | None:
         raise NotImplementedError()
+
+    def _select_insertion_position(self, route: Route) -> int:
+        """Insert in the end, just before the end depot"""
+        return len(route)
 
     def _find_closest_pickup_location(self, from_location_idx: int, excluded_requests: set[int]) -> int | None:
         """
@@ -35,20 +40,16 @@ class ConstructionHeuristic(ABC):
         closest_request = np.argmin(relevant_pickup_locations)
         return int(closest_request)
 
-    @abstractmethod
-    def _select_next_request(self, route: Route, excluded_requests: set[int], insertion_position: int) -> int | None:
-        raise NotImplementedError()
-
     def _select_dropoff_distance(self, route: Route, pickup_at: int, request_id: int) -> int:
         """By default drop off directly after pickup"""
         return 1
 
-    def construct(self, solution: SCFPDPSolution) -> None:
+    def construct(self) -> None:
         served_requests: set[int] = set()
         full_routes: list[Route] = []
 
-        while len(served_requests) < self.instance.gamma and len(full_routes) < len(solution.routes):
-            for current_route in solution.routes:  # go over every route
+        while len(served_requests) < self.instance.gamma and len(full_routes) < len(self.solution.routes):
+            for current_route in self.solution.routes:  # go over every route
                 if current_route in full_routes:
                     continue
 
@@ -65,14 +66,14 @@ class ConstructionHeuristic(ABC):
                 current_route.serve_request(next_request, next_insert_at, dropoff_distance)
                 served_requests.add(next_request)
 
-                if len(served_requests) >= solution.inst.gamma:
+                if len(served_requests) >= self.instance.gamma:
                     break
 
         # validate to make sure the requirements were fulfilled
         try:
-            solution.check()
+            self.solution.check()
         except ValueError:
-            raise ValueError(f"Couldn't construct a satisfying solution. Best solution found: \n\n {solution}")
+            raise ValueError(f"Couldn't construct a satisfying solution. Best solution found: \n\n {self.solution}")
 
 
 class GreedyConstructionHeuristic(ConstructionHeuristic):
@@ -93,10 +94,6 @@ class GreedyConstructionHeuristic(ConstructionHeuristic):
 
         return None
 
-    def _select_insertion_position(self, route: Route) -> int:
-        """Always insert in the end, just before the end depot"""
-        return len(route)
-
     def _select_next_request(self, route: Route, excluded_requests: set[int], insertion_position: int) -> int | None:
         """Greedily select the closest to the insertion position fitting pickup"""
         return self._find_closest_fitting_pickup_location(route, excluded_requests, insertion_position)
@@ -104,10 +101,6 @@ class GreedyConstructionHeuristic(ConstructionHeuristic):
 
 class RandomizedConstructionHeuristic(GreedyConstructionHeuristic):
     TOP_RANDOM_PICKUPS_TO_CONSIDER: int = 5
-    
-    def _select_insertion_position(self, route: Route) -> int:
-        """Randomly select insertion position."""
-        return random.randint(0, len(route))
 
     def _select_next_request(self, route: Route, excluded_requests: set[int], insertion_location_idx: int) -> int | None:
         """Select request using RCL of length 5 to insert at the insertion location."""
@@ -135,8 +128,15 @@ class RandomizedConstructionHeuristic(GreedyConstructionHeuristic):
 if __name__ == '__main__':
     test_instance = SCFPDPInstance('10/test_instance_small.txt')
     competition_instance = SCFPDPInstance('100/competition/instance61_nreq100_nveh2_gamma91.txt')
-    initial_solution = SCFPDPSolution(inst=test_instance)
-    # initial_solution.initialize(0)
-    # GreedyConstructionHeuristic(initial_solution.inst).construct(initial_solution)
-    RandomizedConstructionHeuristic(initial_solution.inst).construct(initial_solution)
-    print(initial_solution)
+
+    instance = competition_instance
+
+    _initial_solution = SCFPDPSolution(inst=instance)
+    GreedyConstructionHeuristic(_initial_solution).construct()
+    print("Greedy solution: ")
+    print(_initial_solution)
+
+    _initial_solution_1 = SCFPDPSolution(inst=instance)
+    RandomizedConstructionHeuristic(_initial_solution_1).construct()
+    print("\n\nRandomized solution: ")
+    print(_initial_solution_1)
