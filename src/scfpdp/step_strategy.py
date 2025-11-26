@@ -1,15 +1,17 @@
 from abc import ABC, abstractmethod
-from typing import Iterable
 from pymhlib.solution import Solution
 
 
 class StepStrategy(ABC):
-    """Defines the policy to choose which neighbour becomes the next solution."""
+    """Interface for defining how a local search step accepts a neighbor."""
 
     @abstractmethod
-    def choose(self, current: Solution, neighbours: Iterable[Solution]) -> Solution | None:
+    def improve(self, solution: Solution, neighborhoods: list) -> bool:
         """
-        Select a neighbour solution, or None if no improving neighbour exists.
-        Do NOT modify the solution directly.
+        Applies one step of improvement.
+
+        :param solution: current solution (mutated only on accepted moves)
+        :param neighborhoods: list of neighborhood objects with generate(...) methods
+        :return: True if the solution was improved; False otherwise
         """
         pass

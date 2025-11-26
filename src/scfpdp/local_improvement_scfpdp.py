@@ -1,32 +1,68 @@
-from pymhlib.scheduler import Method
-from pymhlib.solution import Solution
-from .neighbourhood import Neighbourhood
-from .step_strategy import StepStrategy
+from src.scfpdp.solution import SCFPDPSolution
+from src.scfpdp.neighbourhoods_scfpdp import (
+    InsertNeighborhood,
+    SwapNeighborhood,
+    RelocateNeighborhood
+)
+from src.scfpdp.step_strategies import (
+    FirstImprovement,
+    BestImprovement
+)
 
 
-class SCFPDPLocalImprovement(Method):
+class VNDImprover:
     """
-    Adapter that allows SCFPDP neighbourhood + step strategy to run as a pymhlib Method.
-    Used for GVNS local-improvement (meths_li).
+    Variable Neighborhood Descent (VND) for SCFPDP.
+    Uses a fixed deterministic order of neighborhoods:
+    INSERT -> SWAP -> RELOCATE
     """
 
-    def __init__(self, neighbourhood: Neighbourhood, strategy: StepStrategy):
-        super().__init__()
-        self.neighbourhood = neighbourhood
-        self.strategy = strategy
-        self.best_result = None
+    def __init__(self, step_strategy="first"):
+        if step_strategy.lower() == "first":
+            self.step_strategy = FirstImprovement()
+        elif step_strategy.lower() == "best":
+            self.step_strategy = BestImprovement()
+        else:
+            raise ValueError(f"Unknown step strategy: {step_strategy}")
 
-    def apply(self, sol: Solution):
+        # fixed order for VND
+        self.neighborhoods = [
+            InsertNeighborhood(),
+            SwapNeighborhood(),
+            RelocateNeighborhood()
+        ]
+
+    def improve(self, solution: SCFPDPSolution) -> SCFPDPSolution:
         """
-        Called by pymhlib GVNS.run() through Scheduler.perform_method().
+        Apply VND until no improvement in a full cycle.
         """
-        neighbours = self.neighbourhood.generate(sol)
-        chosen = self.strategy.choose(sol, neighbours)
+        improved = True
 
-        self.best_result = self.Result()
+        while improved:
+            improved = False
+            for nh in self.neighborhoods:
+                candidate, was_improved = self.step_strategy.improve(solution, [nh])
+                if was_improved:
+                    solution = candidate
+                    improved = True
+                    break  # restart neighborhoods
 
-        if chosen and chosen.is_better(sol):
-            sol.copy_from(chosen)
-            self.best_result.changed = True  # pymhlib uses 'changed' to reset VND loops
+        return solution
 
-        return self.best_result
+
+def first_improvement(solution: SCFPDPSolution) -> SCFPDPSolution:
+    """LS: FIRST IMPROVEMENT."""
+    improver = VNDImprover(step_strategy="first")
+    return improver.improve(solution)
+
+
+def best_improvement(solution: SCFPDPSolution) -> SCFPDPSolution:
+    """LS: BEST IMPROVEMENT."""
+    improver = VNDImprover(step_strategy="best")
+    return improver.improve(solution)
+
+
+def vnd_local_search(solution: SCFPDPSolution) -> SCFPDPSolution:
+    """VND (fixed order)."""
+    improver = VNDImprover(step_strategy="first")  # could allow best too
+    return improver.improve(solution)
