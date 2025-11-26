@@ -1,77 +1,48 @@
-from src.scfpdp.step_strategy import StepStrategy
+from abc import ABC, abstractmethod
+
+from pymhlib.solution import Solution
+
+from src.scfpdp.neighbourhoods import Neighborhood
 from src.scfpdp.solution import SCFPDPSolution
 
-class FirstImprovement(StepStrategy):
-    name = "FIRST_IMPROVEMENT"
 
-    def improve(self, solution: SCFPDPSolution, neighborhoods: list):
+class StepStrategy(ABC):
+    """Interface for defining how a local search step accepts a neighbor."""
+
+    @abstractmethod
+    def improve(self, solution: Solution, neighborhood: Neighborhood) -> bool:
+        """
+        Applies one step of improvement.
+
+        :param solution: current solution (mutated only on accepted moves)
+        :param neighborhood: neighborhood object with next_move(...) methods
+        :return: True if the solution was improved; False otherwise
+        """
+        pass
+
+
+class FirstImprovement(StepStrategy):
+    def improve(self, solution: SCFPDPSolution, neighborhood: Neighborhood) -> tuple[SCFPDPSolution, bool]:
         """Returns first improving solution found across any neighborhood."""
-        for nh in neighborhoods:
-            move = nh.next_move(solution)
-            if move is not None:
-                _, new_sol = move
-                return new_sol, True  # improvement found immediately
-        return solution, False  # no improvement found
+        current_obj = solution.calc_objective()
+        for move, neighbor in neighborhood.generate_neighbors(solution):
+            if neighbor.calc_objective() < current_obj:
+                return neighbor, True
+        return solution, False
 
 
 class BestImprovement(StepStrategy):
-    name = "BEST_IMPROVEMENT"
-
-    def improve(self, solution: SCFPDPSolution, neighborhoods: list):
+    def improve(self, solution: SCFPDPSolution, neighborhood: Neighborhood) -> tuple[SCFPDPSolution, bool]:
         """Evaluates all improving candidates and returns the best one."""
         best_sol = solution
         best_obj = solution.calc_objective()
         improved = False
 
-        # Explore all moves in all neighborhoods
-        for nh in neighborhoods:
-            while True:
-                move = nh.next_move(solution)
-                if move is None:
-                    break
-                _, candidate = move
-
-                # candidate is already feasible by design
-                cand_val = candidate.calc_objective()
-
-                if cand_val < best_obj:
-                    best_obj = cand_val
-                    best_sol = candidate
-                    improved = True
-
-                # continue scanning that neighborhood fully
-                # DO NOT early return like FirstImprovement
+        for move, neighbor in neighborhood.generate_neighbors(solution):
+            neighbor_obj = neighbor.calc_objective()
+            if neighbor_obj < best_obj:
+                best_obj = neighbor_obj
+                best_sol = neighbor
+                improved = True
 
         return best_sol, improved
-    
-
-class StepBestImprovement:
-    """
-    Best-improvement step: scans full neighborhood, applies the globally best move.
-
-    Complete scan required. Uses same move interface:
-        apply(solution, move)
-        delta(solution, move)
-        and solution.evaluate()
-    """
-
-    def apply(self, solution, neighborhood) -> bool:
-        best_delta = float("inf")
-        best_move = None
-
-        # iterate over move candidates
-        for move in neighborhood.generate(solution):
-            delta = neighborhood.evaluate_move(solution, move)
-            if delta < best_delta:
-                best_delta = delta
-                best_move = move
-
-        # No improving move found
-        if best_move is None or best_delta >= 0:
-            return False
-
-        # Apply best move
-        neighborhood.apply_move(solution, best_move)
-        solution.invalidate()  # recalc objective lazily
-        return True
-

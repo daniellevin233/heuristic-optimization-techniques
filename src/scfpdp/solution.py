@@ -12,7 +12,7 @@ class Route:
         self.served_requests: list[int] = []
 
     def __repr__(self):
-        return f"Served requests: {{{', '.join(str(i) for i in self.served_requests)}}} along the route: {["depot"] + self.route + ["depot"]} (distance={self.distance:.2f}; capacity={self._get_carried_capacity()}/{self.instance.C})"
+        return f"Served requests: {{{', '.join(str(i) for i in self.served_requests)}}} along the route: {["depot"] + self.route + ["depot"]} (distance={self.distance:.2f}; capacity={self.get_carried_capacity()}/{self.instance.C})"
 
     def __len__(self) -> int:
         return len(self.route)
@@ -45,7 +45,7 @@ class Route:
         self.insert_location(request_id, pickup_at)
         self.insert_location(request_id + self.instance.n, dropoff_at)
 
-    def _get_carried_capacity(self) -> int:
+    def get_carried_capacity(self) -> int:
         return self.get_capacity_at_position(len(self.route))
 
     def get_capacity_at_position(self, position: int) -> int:
@@ -60,6 +60,22 @@ class Route:
             else:  # dropoff
                 capacity -= self.instance.demands[location_idx - self.instance.n]
         return capacity
+
+    def _check_capacity_constraint_at_position(self, position: int) -> int:
+        capacity = 0
+        for location_idx in self.route[:position]:
+            if location_idx < self.instance.n:  # pickup
+                capacity += self.instance.demands[location_idx]
+                if capacity > self.instance.C:
+                    raise ValueError(f"Capacity constraint violation at {location_idx} is violated")
+            else:  # dropoff
+                capacity -= self.instance.demands[location_idx - self.instance.n]
+        return capacity
+
+    def check_capacity_constraint(self) -> None:
+        total_capacity = self._check_capacity_constraint_at_position(len(self.route))
+        if total_capacity != 0:
+            raise ValueError(f"Capacity constraint is violated with total capacity {total_capacity} instead of 0")
 
     def n_served_requests(self) -> int:
         return len(self.served_requests)
@@ -84,8 +100,31 @@ class Route:
             if pickup_pos >= dropoff_pos:
                 raise ValueError(f"Request {request_id}: dropoff at position {dropoff_pos} must come after pickup at position {pickup_pos}")
 
-        if (current_capacity := self._get_carried_capacity()) != 0:
-            raise ValueError(f"Route capacity non-negative: {current_capacity}")
+        self.check_capacity_constraint()
+
+    def swap_locations(self, location_a, location_b) -> None:
+        self.route[location_a], self.route[location_b] = self.route[location_b], self.route[location_a]
+        self.check()
+        self.recompute_route_distance()
+
+    def move_from_to(self, move_from: int, move_to: int) -> None:
+        moved_value = self.route.pop(move_from)
+        self.route.insert(move_to, moved_value)
+        self.check()
+        self.recompute_route_distance()
+
+    def relocate_location_to(self, position: int, target_route: 'Route', target_position: int) -> None:
+        moved_value = self.route.pop(position)
+        target_route.route.insert(target_position, moved_value)
+
+        if moved_value <= self.instance.n:
+            self.served_requests.remove(moved_value)
+            target_route.served_requests.append(moved_value)
+
+        self.check()
+        self.recompute_route_distance()
+        target_route.check()
+        target_route.recompute_route_distance()
 
 
 
@@ -132,7 +171,7 @@ class SCFPDPSolution(Solution):
 
     def initialize(self, k):
         from src.construction_heuristics import GreedyConstructionHeuristic
-        GreedyConstructionHeuristic().construct(self)
+        GreedyConstructionHeuristic(self).construct()
         self.invalidate()
 
     def check(self):

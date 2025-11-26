@@ -1,4 +1,4 @@
-# src/scfpdp/neighbourhoods_scfpdp.py
+# src/scfpdp/neighbourhoods.py
 
 from src.scfpdp.neighbourhood import Neighborhood
 from src.scfpdp.solution import SCFPDPSolution

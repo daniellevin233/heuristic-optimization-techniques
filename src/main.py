@@ -1,12 +1,10 @@
 from src.scfpdp.instance import SCFPDPInstance
 from src.scfpdp.solution import SCFPDPSolution
-from src.scfpdp.step_strategies import StepBestImprovement
-from src.scfpdp.vnd import VND
-from src.scfpdp.local_improvement_scfpdp import VNDImprover
+from src.scfpdp.local_improvement_scfpdp import VNDImprover, vnd_local_search, first_improvement, best_improvement
 from src.scfpdp.grasp import GraspSCFPDP
 
 if __name__ == "__main__":
-    instance = SCFPDPInstance("../instances/10/test_instance_small.txt")
+    instance = SCFPDPInstance("instances/10/test_instance_small.txt")
     sol = SCFPDPSolution(instance)
 
     # Construct using previously implemented heuristic
@@ -15,28 +13,16 @@ if __name__ == "__main__":
     print("Initial solution:")
     print(sol)
 
-    # ## for VND testing
-    vnd = VND()
-    vnd.improve(sol)
-
-    print("\nAfter VND:")
+    print("\nAfter first improvement VND:")
+    sol = first_improvement(sol)
     print(sol)
 
-
-    # step_best = StepBestImprovement()
-    # vnd = VND(step_function=step_best)
-    # vnd.improve(sol)
-
-    ## for VNDImprover testing
-    sol.initialize(k=0)  # deterministic greedy solution
-
-    print("Before VND:")
+    sol.initialize(k=0)
+    print("\nBefore best improvement VND:")
     print(sol)
 
-    vnd = VNDImprover(step_strategy="best")
-    sol = vnd.improve(sol)
-
-    print("\nAfter VND:")
+    sol = best_improvement(sol)
+    print("\nAfter best improvement VND:")
     print(sol)
 
     ## for GRASP testing

@@ -1,5 +1,7 @@
+from enum import Enum
+
 from src.scfpdp.solution import SCFPDPSolution
-from src.scfpdp.neighbourhoods_scfpdp import (
+from src.scfpdp.neighbourhoods import (
     InsertNeighborhood,
     SwapNeighborhood,
     RelocateNeighborhood
@@ -10,6 +12,11 @@ from src.scfpdp.step_strategies import (
 )
 
 
+class StepStrategy(Enum):
+    FIRST = "FIRST"
+    BEST = "BEST"
+
+
 class VNDImprover:
     """
     Variable Neighborhood Descent (VND) for SCFPDP.
@@ -17,10 +24,10 @@ class VNDImprover:
     INSERT -> SWAP -> RELOCATE
     """
 
-    def __init__(self, step_strategy="first"):
-        if step_strategy.lower() == "first":
+    def __init__(self, step_strategy: StepStrategy):
+        if step_strategy == StepStrategy.FIRST:
             self.step_strategy = FirstImprovement()
-        elif step_strategy.lower() == "best":
+        elif step_strategy == StepStrategy.BEST:
             self.step_strategy = BestImprovement()
         else:
             raise ValueError(f"Unknown step strategy: {step_strategy}")
@@ -41,7 +48,7 @@ class VNDImprover:
         while improved:
             improved = False
             for nh in self.neighborhoods:
-                candidate, was_improved = self.step_strategy.improve(solution, [nh])
+                candidate, was_improved = self.step_strategy.improve(solution, nh)
                 if was_improved:
                     solution = candidate
                     improved = True
@@ -52,17 +59,17 @@ class VNDImprover:
 
 def first_improvement(solution: SCFPDPSolution) -> SCFPDPSolution:
     """LS: FIRST IMPROVEMENT."""
-    improver = VNDImprover(step_strategy="first")
+    improver = VNDImprover(step_strategy=StepStrategy.FIRST)
     return improver.improve(solution)
 
 
 def best_improvement(solution: SCFPDPSolution) -> SCFPDPSolution:
     """LS: BEST IMPROVEMENT."""
-    improver = VNDImprover(step_strategy="best")
+    improver = VNDImprover(step_strategy=StepStrategy.BEST)
     return improver.improve(solution)
 
 
 def vnd_local_search(solution: SCFPDPSolution) -> SCFPDPSolution:
     """VND (fixed order)."""
-    improver = VNDImprover(step_strategy="first")  # could allow best too
+    improver = VNDImprover(step_strategy=StepStrategy.FIRST)  # could allow best too
     return improver.improve(solution)

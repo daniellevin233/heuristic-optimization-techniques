@@ -62,7 +62,7 @@ class SCFPDPInstance:
             x_pickup1 y_pickup1 x_pickup2 y_pickup2 ... x_pickupn y_pickupn
             x_dropoff1 y_dropoff1 x_dropoff2 y_dropoff2 ... x_dropoffn y_dropoffn
         """
-        with open(f"../instances/{file_name}", 'r') as f:
+        with open(file_name, 'r') as f:
             lines = [line.strip() for line in f if line.strip()]
 
         params = lines[0].split()

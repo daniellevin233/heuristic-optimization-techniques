@@ -1,5 +1,4 @@
 import time
-from pymhlib.solution import Solution
 
 class LocalSearch:
     def __init__(self, solution, neighborhoods):
