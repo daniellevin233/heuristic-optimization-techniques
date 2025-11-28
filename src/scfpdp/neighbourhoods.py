@@ -188,7 +188,7 @@ class RelocateNeighborhood(Neighborhood):
                         new_to = new_sol.routes[target_route_idx]
 
                         try:
-                            new_from.relocate_request_to(request_id, new_to, pos_to)
+                            new_from.relocate_request_to(request_id, new_to, pos_to, 1)
                         except ValueError:
                             continue
 

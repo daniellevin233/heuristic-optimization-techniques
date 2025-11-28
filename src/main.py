@@ -4,7 +4,7 @@ from src.scfpdp.local_improvement_scfpdp import VNDImprover, vnd_local_search, f
 from src.scfpdp.grasp import GraspSCFPDP
 
 if __name__ == "__main__":
-    instance = SCFPDPInstance("instances/10/test_instance_small.txt")
+    instance = SCFPDPInstance("10/test_instance_small.txt")
     sol = SCFPDPSolution(instance)
 
     # Construct using previously implemented heuristic
@@ -17,10 +17,13 @@ if __name__ == "__main__":
     sol = first_improvement(sol)
     print(sol)
 
-    sol.initialize(k=0)
+    sol = SCFPDPSolution(instance)
+    sol.initialize(0)
     print("\nBefore best improvement VND:")
     print(sol)
 
+    sol = SCFPDPSolution(instance)
+    sol.initialize(0)
     sol = best_improvement(sol)
     print("\nAfter best improvement VND:")
     print(sol)

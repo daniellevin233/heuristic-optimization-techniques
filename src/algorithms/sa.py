@@ -38,9 +38,9 @@ class SCFPDPSA:
 
         sa = SA(
             sol=self.solution,
-            meths_ch=[Method("greedy_construct", greedy_constructor, 0),
+            meths_ch=[Method("beam_construct", beam_constructor, 0),
                       Method("randomized_construct", random_constructor, 0),
-                      Method("beam_construct", beam_constructor, 0)],
+                      Method("greedy_construct", greedy_constructor, 0)],
             random_move_delta_eval=lambda s: s.random_move_delta_eval(self.neighborhood),
             apply_neighborhood_move=lambda s, m: s.apply_neighborhood_move(m),
             iter_cb=None,

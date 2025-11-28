@@ -28,11 +28,14 @@ class Route:
         self.distance = route_distance
 
     def insert_location(self, location_idx: int, at: int) -> None:
-        assert location_idx not in self.route, f"Cannot insert location {location_idx} that has already been added to the route: {self.route}"
+        if location_idx in self.route:
+            raise ValueError(f"Request {location_idx} is already in the route")
+        if location_idx in self.served_requests:
+            raise ValueError(f"Request {location_idx} is already served")
+
         self.route.insert(at, location_idx)
         # serve the request if it's a pickup index
         if location_idx < self.instance.n:
-            assert location_idx not in self.served_requests, f"Cannot serve a request {location_idx} that has already been served: {self.served_requests}"
             self.served_requests.append(location_idx)
 
     def serve_request(self, request_id: int, pickup_at: int, dropoff_distance_from_pickup: int) -> None:
