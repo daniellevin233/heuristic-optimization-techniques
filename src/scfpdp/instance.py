@@ -36,6 +36,8 @@ class SCFPDPInstance:
         Args:
             file_name: path to the instance file
         """
+        self.file_name = file_name
+
         self.n = None
         self.n_K = None
         self.C = None

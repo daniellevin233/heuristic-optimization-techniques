@@ -1,4 +1,5 @@
 import copy
+from pathlib import Path
 
 from pymhlib.solution import Solution
 
@@ -206,6 +207,28 @@ class SCFPDPSolution(Solution):
     def is_complete(self) -> bool:
         # self.check()
         return len(self.get_all_served_requests()) == self.inst.gamma
+
+    def write_to_file(self) -> None:
+        instance_file = Path(self.inst.file_name)
+        instance_name = instance_file.stem
+
+        current = Path.cwd()
+        project_root = current
+        while project_root != project_root.parent:
+            if (project_root / "instances").exists():
+                break
+            project_root = project_root.parent
+
+        solutions_dir = project_root / "solutions"
+        solutions_dir.mkdir(parents=True, exist_ok=True)
+
+        output_file = solutions_dir / f"{instance_name}.txt"
+        
+        with open(output_file, 'w') as f:
+            f.write(f"{instance_name} {self.calc_objective():.2f}\n")
+            for route in self.routes:
+                route_str = ' '.join(str(loc) for loc in route.route)
+                f.write(f"{route_str}\n")
 
 
 if __name__ == '__main__':
