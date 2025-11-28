@@ -30,7 +30,7 @@ class GraspSCFPDP:
         for _ in range(self.max_iter):
             # --------- 1) RANDOMIZED GREEDY CONSTRUCTION  ---------
             sol = SCFPDPSolution(instance)
-            RandomizedConstructionHeuristic().construct(sol)
+            RandomizedConstructionHeuristic(sol).construct()
 
             # --------- 2) SELECTED LOCAL IMPROVEMENT  ---------
             improved = self._apply_local_search(sol)

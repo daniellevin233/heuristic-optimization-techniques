@@ -45,16 +45,17 @@ class VNDImprover:
         """
         improved = True
 
+        best_solution = solution
         while improved:
             improved = False
             for nh in self.neighborhoods:
-                candidate, was_improved = self.step_strategy.improve(solution, nh)
+                candidate, was_improved = self.step_strategy.improve(best_solution, nh)
                 if was_improved:
-                    solution = candidate
+                    best_solution = candidate
                     improved = True
                     break  # restart neighborhoods
 
-        return solution
+        return best_solution
 
 
 def first_improvement(solution: SCFPDPSolution) -> SCFPDPSolution:
@@ -71,5 +72,4 @@ def best_improvement(solution: SCFPDPSolution) -> SCFPDPSolution:
 
 def vnd_local_search(solution: SCFPDPSolution) -> SCFPDPSolution:
     """VND (fixed order)."""
-    improver = VNDImprover(step_strategy=StepStrategy.FIRST)  # could allow best too
-    return improver.improve(solution)
+    return first_improvement(solution)  # could allow best too
