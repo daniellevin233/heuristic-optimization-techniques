@@ -1,7 +1,7 @@
 from enum import Enum
 
 from src.scfpdp.solution import SCFPDPSolution
-from src.scfpdp.neighbourhoods import (
+from scfpdp.neighbourhoods_scfpdp import (
     InsertNeighborhood,
     SwapNeighborhood,
     RelocateNeighborhood
@@ -72,4 +72,5 @@ def best_improvement(solution: SCFPDPSolution) -> SCFPDPSolution:
 
 def vnd_local_search(solution: SCFPDPSolution) -> SCFPDPSolution:
     """VND (fixed order)."""
+
     return first_improvement(solution)  # could allow best too

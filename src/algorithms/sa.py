@@ -5,10 +5,10 @@ from pymhlib.scheduler import Method, Result
 from pymhlib.solution import Solution
 
 from src.algorithms.beam_search import SCFPDPBeamSearch
-from src.construction_heuristics import RandomizedConstructionHeuristic
+from scfpdp.construction_heuristics import RandomizedConstructionHeuristic
 from src.scfpdp.solution import SCFPDPSolution
 from src.scfpdp.instance import SCFPDPInstance
-from src.scfpdp.neighbourhoods import SwapNeighborhood, Neighborhood, InsertNeighborhood, RelocateNeighborhood
+from scfpdp.neighbourhoods_scfpdp import SwapNeighborhood, Neighborhood, InsertNeighborhood, RelocateNeighborhood
 
 
 class SCFPDPSA:

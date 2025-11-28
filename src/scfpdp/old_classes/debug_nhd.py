@@ -1,6 +1,6 @@
 from src.scfpdp.instance import SCFPDPInstance
 from src.scfpdp.solution import SCFPDPSolution
-from src.scfpdp.neighbourhoods import InsertRequestNeighborhood
+from scfpdp.neighbourhoods_scfpdp import InsertRequestNeighborhood
 
 inst = SCFPDPInstance("../instances/10/test_instance_small.txt")
 sol = SCFPDPSolution(inst)
