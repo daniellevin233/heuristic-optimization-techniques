@@ -59,14 +59,20 @@ class SwapNeighborhood(Neighborhood):
 
 
 class RelocateNeighborhood(Neighborhood):
-    """Move pickup or dropoff into ANOTHER route or different position in SAME route."""
+    """Relocate a full request (pickup + dropoff) to another route or new position."""
 
     def __init__(self):
         super().__init__("RELOCATE")
 
     def generate_neighbors(self, solution: SCFPDPSolution):
+        n = solution.inst.n
+
         for r_from, route in enumerate(solution.routes):
             for pos_from in range(len(route.route)):
+
+                node = route.route[pos_from]
+                req = node if node < n else node - n  # request id
+
                 for r_to, target in enumerate(solution.routes):
                     for pos_to in range(len(target.route) + 1):
 
@@ -74,9 +80,36 @@ class RelocateNeighborhood(Neighborhood):
                         new_from = new_sol.routes[r_from]
                         new_to = new_sol.routes[r_to]
 
+                        # --- remove pickup + dropoff ---
                         try:
-                            new_from.relocate_location_to(pos_from, new_to, pos_to)
+                            p = new_from.route.index(req)
+                            d = new_from.route.index(req + n)
+
+                            # remove in descending order to avoid index shift
+                            for idx in sorted([p, d], reverse=True):
+                                new_from.route.pop(idx)
+
                         except ValueError:
+                            continue  # request not fully in this route
+
+                        # --- insertion: pickup then dropoff ---
+                        try:
+                            new_to.route.insert(pos_to, req)
+                            new_to.route.insert(pos_to + 1, req + n)
+                        except Exception:
                             continue
 
-                        yield (("RELOCATE", r_from, pos_from, r_to, pos_to), new_sol)
+                        # --- validate  ---
+                        try:
+                            new_from.recompute_route_distance()
+                            new_from.check()
+
+                            if new_to is not new_from:
+                                new_to.recompute_route_distance()
+                                new_to.check()
+
+                        except ValueError:
+                            continue  # infeasible, skip
+
+                        yield (("RELOCATE", req, r_from, r_to, pos_to), new_sol)
+
