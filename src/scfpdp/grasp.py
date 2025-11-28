@@ -1,49 +1,98 @@
-import time
+"""
+GRASP for the SCFPDP (Selective Capacitated Fair Pickup and Delivery Problem)
+
+- Construction is randomized greedy (user-provided function)
+- Local Search uses injected strategies (e.g., VND)
+"""
+
+import math
+import random
+from typing import Callable
+
 from src.scfpdp.solution import SCFPDPSolution
-from src.scfpdp.local_improvement_scfpdp import vnd_local_search, first_improvement, best_improvement
-from src.construction_heuristics import RandomizedConstructionHeuristic
+
+
+# ===============================
+#         GRASP CLASS
+# ===============================
 
 class GraspSCFPDP:
-    def __init__(self, max_iter=50, max_time=None, local_search="VND"):
+
+    def __init__(
+        self,
+        construct: Callable[[float], SCFPDPSolution],
+        local_search: Callable[[SCFPDPSolution], SCFPDPSolution],
+        alpha: float = 0.25,
+        max_iter: int = 50
+    ):
         """
-        local_search ∈ {"FIRST", "BEST", "VND"}
+        Parameters
+        ----------
+        construct : function(alpha) -> SCFPDPSolution
+            Greedy randomized construction receiving alpha.
+        local_search : function(solution) -> SCFPDPSolution
+            Example: VND(modes="swap-insert-relocate")
+        alpha : float
+            0 = pure greedy, 1 = purely random
+        max_iter : int
+            number of independent GRASP runs
         """
+        self.construct = construct
+        self.local_search = local_search
+        self.alpha = alpha
         self.max_iter = max_iter
-        self.max_time = max_time  # seconds (optional)
-        self.local_search = local_search.upper()
 
-    def _apply_local_search(self, solution):
-        if self.local_search == "FIRST":
-            return first_improvement(solution)
-        elif self.local_search == "BEST":
-            return best_improvement(solution)
-        elif self.local_search == "VND":
-            return vnd_local_search(solution)
-        else:
-            raise ValueError(f"Unknown local search: {self.local_search}")
+    def run(self, verbose: bool = False) -> SCFPDPSolution:
+        """
+        Executes the GRASP metaheuristic.
+        """
+        best = None
 
-    def run(self, instance):
-        best_solution = None
-        best_obj = float("inf")
-        t0 = time.time()
+        for it in range(self.max_iter):
+            # --- Construction Phase ---
+            sol = self.construct(self.alpha)
 
-        for _ in range(self.max_iter):
-            # --------- 1) RANDOMIZED GREEDY CONSTRUCTION  ---------
-            sol = SCFPDPSolution(instance)
-            RandomizedConstructionHeuristic(sol).construct()
+            # --- Local Search Phase ---
+            sol = self.local_search(sol)
 
-            # --------- 2) SELECTED LOCAL IMPROVEMENT  ---------
-            improved = self._apply_local_search(sol)
-            improved.invalidate()
+            # --- Update Best ---
+            if best is None or sol.cost < best.cost:
+                best = sol.copy()
 
-            # --------- 3) KEEP BEST ---------
-            obj = improved.calc_objective()
-            if obj < best_obj:
-                best_obj = obj
-                best_solution = improved
+            if verbose:
+                print(f"[GRASP] Iter {it+1}/{self.max_iter} best={best.cost:.2f}")
 
-            # --------- Stop if time reached ---------
-            if self.max_time and time.time() - t0 >= self.max_time:
-                break
+        return best
 
-        return best_solution
+
+# ===============================
+#  OPTIONAL ALPHA VARIANTS
+# ===============================
+
+def alpha_random(min_a=0.05, max_a=0.35):
+    """ Dynamic alpha for reactive GRASP """
+    return random.uniform(min_a, max_a)
+
+
+def alpha_constant(a=0.25):
+    """ Constant alpha (default greedy/rand mix) """
+    return a
+
+
+# ===============================
+#  FACTORY HELPER
+# ===============================
+
+def make_grasp(
+    construct: Callable[[float], SCFPDPSolution],
+    local_search: Callable[[SCFPDPSolution], SCFPDPSolution],
+    alpha=0.25,
+    iters=50
+) -> GraspSCFPDP:
+    """ Shortcut for cleaner client code """
+    return GraspSCFPDP(
+        construct=construct,
+        local_search=local_search,
+        alpha=alpha,
+        max_iter=iters
+    )
