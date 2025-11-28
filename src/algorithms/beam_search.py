@@ -116,7 +116,7 @@ def main():
     beam_search = SCFPDPBeamSearch(instance, 10, 4)
     result = beam_search.solve()
     beam_search.print_result(result)
-    result[0].write_to_file()
+    # result[0].write_to_file()
 
 
 if __name__ == "__main__":

@@ -1,9 +1,11 @@
 import copy
 from pathlib import Path
+from typing import Any
 
 from pymhlib.solution import Solution
 
 from src.scfpdp.instance import SCFPDPInstance
+
 
 class Route:
     def __init__(self, instance: SCFPDPInstance):
@@ -32,16 +34,21 @@ class Route:
         if location_idx < self.instance.n:
             assert location_idx not in self.served_requests, f"Cannot serve a request {location_idx} that has already been served: {self.served_requests}"
             self.served_requests.append(location_idx)
-        # todo delta evaluation will integrate here to replace this inefficient recalculation at every insert
-        self.recompute_route_distance()
 
     def serve_request(self, request_id: int, pickup_at: int, dropoff_distance_from_pickup: int) -> None:
-        assert pickup_at <= len(self.route), f"Pickup insertion index is out of range: {pickup_at}; route length: {len(self.route)}"
-        assert dropoff_distance_from_pickup > 0, f"Dropoff must be at least one position to the right from the pickup"
+        if pickup_at > len(self.route):
+            raise ValueError(f"Pickup insertion index is out of range: {pickup_at}; route length: {len(self.route)}")
+        if dropoff_distance_from_pickup <= 0:
+            raise ValueError("Dropoff must be at least one position to the right from the pickup")
         dropoff_at = pickup_at + dropoff_distance_from_pickup
-        assert dropoff_at <= len(self.route) + 1, f"Dropoff insertion index is out of range: {dropoff_at}; route length: {len(self.route)}"
+        if dropoff_at > len(self.route) + 1:
+            raise ValueError(f"Dropoff insertion index is out of range: {dropoff_at}; route length: {len(self.route)}")
         self.insert_location(request_id, pickup_at)
         self.insert_location(request_id + self.instance.n, dropoff_at)
+        self.check()
+
+        # todo delta evaluation will integrate here to replace this inefficient recalculation at every insert
+        self.recompute_route_distance()
 
     def can_take_request(self, request_id: int, at_position: int) -> bool:
         return self.get_capacity_at_position(at_position) + self.instance.demands[request_id] <= self.instance.C
@@ -114,18 +121,26 @@ class Route:
         self.check()
         self.recompute_route_distance()
 
-    def relocate_location_to(self, position: int, target_route: 'Route', target_position: int) -> None:
-        moved_value = self.route.pop(position)
-        target_route.route.insert(target_position, moved_value)
+    def relocate_request_to(self, request_id: int, route_to: 'Route', pos_to: int, dropoff_distance_from_pickup: int) -> None:
+        self.remove_request(request_id)
+        route_to.serve_request(request_id, pos_to, dropoff_distance_from_pickup)
 
-        if moved_value <= self.instance.n:
-            self.served_requests.remove(moved_value)
-            target_route.served_requests.append(moved_value)
+    def remove_request(self, request_id: int) -> None:
+        """Remove both pickup and dropoff locations for a request from this route."""
+        pickup_idx = request_id
+        dropoff_idx = request_id + self.instance.n
+
+        pickup_pos = self.route.index(pickup_idx)
+        dropoff_pos = self.route.index(dropoff_idx)
+
+        for idx in sorted([pickup_pos, dropoff_pos], reverse=True):
+            self.route.pop(idx)
+
+        if request_id in self.served_requests:
+            self.served_requests.remove(request_id)
 
         self.check()
         self.recompute_route_distance()
-        target_route.check()
-        target_route.recompute_route_distance()
 
 
 
@@ -174,8 +189,8 @@ class SCFPDPSolution(Solution):
 
     def initialize(self, k):
         from src.construction_heuristics import GreedyConstructionHeuristic
-        GreedyConstructionHeuristic(self).construct()
         self.invalidate()
+        GreedyConstructionHeuristic(self).construct()
 
     def check(self):
         super().check()
@@ -207,6 +222,18 @@ class SCFPDPSolution(Solution):
     def is_complete(self) -> bool:
         # self.check()
         return len(self.get_all_served_requests()) == self.inst.gamma
+
+    def random_move_delta_eval(self, neighborhood: "Neighborhood") -> tuple[Any, float]:
+        move, test_solution = neighborhood.generate_random_neighbor(self)
+        if test_solution is None:  # no valid solution - let SA iterate further by skipping this infeasible
+            return None, float('inf')
+        current_obj = self.calc_objective()
+        new_obj = test_solution.calc_objective()
+        delta = new_obj - current_obj
+        return move, delta
+
+    def apply_neighborhood_move(self, move):
+        move.move(self)
 
     def write_to_file(self) -> None:
         instance_file = Path(self.inst.file_name)

@@ -25,7 +25,7 @@ class FirstImprovement(StepStrategy):
     def improve(self, solution: SCFPDPSolution, neighborhood: Neighborhood) -> tuple[SCFPDPSolution, bool]:
         """Returns first improving solution found across any neighborhood."""
         current_obj = solution.calc_objective()
-        for move, neighbor in neighborhood.generate_neighbors(solution):
+        for neighbor in neighborhood.generate_neighbors(solution):
             if neighbor.calc_objective() < current_obj:
                 return neighbor, True
         return solution, False
@@ -38,7 +38,7 @@ class BestImprovement(StepStrategy):
         best_obj = solution.calc_objective()
         improved = False
 
-        for move, neighbor in neighborhood.generate_neighbors(solution):
+        for neighbor in neighborhood.generate_neighbors(solution):
             neighbor_obj = neighbor.calc_objective()
             if neighbor_obj < best_obj:
                 best_obj = neighbor_obj
