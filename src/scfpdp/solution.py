@@ -4,6 +4,7 @@ from typing import Any
 
 from pymhlib.solution import Solution
 
+from src.scfpdp.construction_heuristics import GreedyConstructionHeuristic
 from src.scfpdp.instance import SCFPDPInstance
 
 
@@ -191,7 +192,6 @@ class SCFPDPSolution(Solution):
         return total_distance + self.inst.rho * (1 - jain)
 
     def initialize(self, k):
-        from scfpdp.construction_heuristics import GreedyConstructionHeuristic
         self.invalidate()
         GreedyConstructionHeuristic(self).construct()
 

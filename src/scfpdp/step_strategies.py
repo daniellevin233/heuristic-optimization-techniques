@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from pymhlib.solution import Solution
 
-from scfpdp.neighbourhoods_scfpdp import Neighborhood
+from src.scfpdp.neighbourhoods_scfpdp import Neighborhood
 from src.scfpdp.solution import SCFPDPSolution
 
 
