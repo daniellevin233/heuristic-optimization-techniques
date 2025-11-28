@@ -34,9 +34,6 @@ class Route:
         # todo delta evaluation will integrate here to replace this inefficient recalculation at every insert
         self.recompute_route_distance()
 
-    def can_take_request(self, request_id: int, at_position: int) -> bool:
-        return self.get_capacity_at_position(at_position) + self.instance.demands[request_id] <= self.instance.C
-
     def serve_request(self, request_id: int, pickup_at: int, dropoff_distance_from_pickup: int) -> None:
         assert pickup_at <= len(self.route), f"Pickup insertion index is out of range: {pickup_at}; route length: {len(self.route)}"
         assert dropoff_distance_from_pickup > 0, f"Dropoff must be at least one position to the right from the pickup"
@@ -44,6 +41,9 @@ class Route:
         assert dropoff_at <= len(self.route) + 1, f"Dropoff insertion index is out of range: {dropoff_at}; route length: {len(self.route)}"
         self.insert_location(request_id, pickup_at)
         self.insert_location(request_id + self.instance.n, dropoff_at)
+
+    def can_take_request(self, request_id: int, at_position: int) -> bool:
+        return self.get_capacity_at_position(at_position) + self.instance.demands[request_id] <= self.instance.C
 
     def get_carried_capacity(self) -> int:
         return self.get_capacity_at_position(len(self.route))
@@ -145,7 +145,8 @@ class SCFPDPSolution(Solution):
         except ValueError as e:
             is_valid = False
             error = e.args[0]
-        lines = [f"SCFPDPSolution({f'Objective: {self.calc_objective():.2f}' if is_valid else f'Invalid solution: "{error}"'})"]
+        objective_message = f'Objective: {self.calc_objective():.2f}'
+        lines = [f"SCFPDPSolution({objective_message if is_valid else f'Invalid solution: "{error}";{objective_message}'})"]
         for vehicle_i, route in enumerate(self.routes):
             lines.append(f"  Vehicle {vehicle_i}: {route}")
         total_requests = sum(route.n_served_requests() for route in self.routes)
@@ -153,7 +154,6 @@ class SCFPDPSolution(Solution):
         return '\n'.join(lines)
 
     def copy_from(self, other: 'SCFPDPSolution'):
-        super().copy_from(other)
         self.routes = copy.deepcopy(other.routes)
 
     def copy(self):
@@ -166,6 +166,8 @@ class SCFPDPSolution(Solution):
         for route in self.routes:
             total_distance += route.distance
             sum_of_squares += route.distance**2
+        if sum_of_squares == 0:
+            return 0
         jain = total_distance / (self.inst.n_K * sum_of_squares)
         return total_distance + self.inst.rho * (1 - jain)
 
@@ -197,6 +199,13 @@ class SCFPDPSolution(Solution):
         if n_total_served_requests < self.inst.gamma:
             raise ValueError(f"Not enough requests served: {n_total_served_requests} < {self.inst.gamma} (gamma)")
         return None
+
+    def get_all_served_requests(self) -> set[int]:
+        return set().union(*[r.served_requests for r in self.routes])
+
+    def is_complete(self) -> bool:
+        # self.check()
+        return len(self.get_all_served_requests()) == self.inst.gamma
 
 
 if __name__ == '__main__':

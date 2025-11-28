@@ -62,7 +62,21 @@ class SCFPDPInstance:
             x_pickup1 y_pickup1 x_pickup2 y_pickup2 ... x_pickupn y_pickupn
             x_dropoff1 y_dropoff1 x_dropoff2 y_dropoff2 ... x_dropoffn y_dropoffn
         """
-        with open(file_name, 'r') as f:
+        from pathlib import Path
+
+        file_path = Path(file_name)
+        if not file_path.is_absolute():
+            current = Path.cwd()
+            while current != current.parent:
+                candidate = current / "instances" / file_name
+                if candidate.exists():
+                    file_path = candidate
+                    break
+                current = current.parent
+            else:
+                file_path = Path("instances") / file_name
+
+        with open(file_path, 'r') as f:
             lines = [line.strip() for line in f if line.strip()]
 
         params = lines[0].split()

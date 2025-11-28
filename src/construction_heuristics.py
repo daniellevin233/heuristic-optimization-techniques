@@ -17,7 +17,8 @@ class ConstructionHeuristic(ABC):
     def _select_next_request(self, route: Route, excluded_requests: set[int], insertion_position: int) -> int | None:
         raise NotImplementedError()
 
-    def _select_insertion_position(self, route: Route) -> int:
+    @staticmethod
+    def select_insertion_position(route: Route) -> int:
         """Insert in the end, just before the end depot"""
         return len(route)
 
@@ -40,7 +41,8 @@ class ConstructionHeuristic(ABC):
         closest_request = np.argmin(relevant_pickup_locations)
         return int(closest_request)
 
-    def _select_dropoff_distance(self, route: Route, pickup_at: int, request_id: int) -> int:
+    @staticmethod
+    def select_dropoff_distance(route: Route) -> int:
         """By default drop off directly after pickup"""
         return 1
 
@@ -53,14 +55,14 @@ class ConstructionHeuristic(ABC):
                 if current_route in full_routes:
                     continue
 
-                next_insert_at = self._select_insertion_position(current_route)
+                next_insert_at = self.select_insertion_position(current_route)
                 next_request = self._select_next_request(current_route, served_requests, next_insert_at)
                 # If there is no feasible next request for this route, move on to the next route.
                 if next_request is None:
                     full_routes.append(current_route)
                     continue
 
-                dropoff_distance = self._select_dropoff_distance(current_route, next_insert_at, next_request)
+                dropoff_distance = self.select_dropoff_distance(current_route)
 
                 # In this greedy construction - append pickup and dropoff together as the last two stops before depot
                 current_route.serve_request(next_request, next_insert_at, dropoff_distance)
@@ -100,10 +102,12 @@ class GreedyConstructionHeuristic(ConstructionHeuristic):
 
 
 class RandomizedConstructionHeuristic(GreedyConstructionHeuristic):
-    TOP_RANDOM_PICKUPS_TO_CONSIDER: int = 5
+    def __init__(self, initial_solution: SCFPDPSolution, top_random_pickups_to_consider: int = 5):
+        super().__init__(initial_solution)
+        self.top_random_pickups_to_consider = top_random_pickups_to_consider
 
-    def _select_next_request(self, route: Route, excluded_requests: set[int], insertion_location_idx: int) -> int | None:
-        """Select request using RCL of length 5 to insert at the insertion location."""
+    def get_rcl_of_next_requests(self, route: Route, excluded_requests: set[int], insertion_location_idx: int) -> list[int] | None:
+        """Select request using RCL of length top_random_pickups_to_consider to insert at the insertion location."""
         capacity_at_insertion = route.get_capacity_at_position(insertion_location_idx)
         remaining_capacity = self.instance.C - capacity_at_insertion
 
@@ -119,10 +123,13 @@ class RandomizedConstructionHeuristic(GreedyConstructionHeuristic):
             return None
 
         candidates.sort()
-        rcl = candidates[:min(self.TOP_RANDOM_PICKUPS_TO_CONSIDER, len(candidates))]
+        rcl = candidates[:min(self.top_random_pickups_to_consider, len(candidates))]
+        return [c[1] for c in rcl]
 
-        selected = random.choice(rcl)
-        return selected[1]
+    def _select_next_request(self, route: Route, excluded_requests: set[int], insertion_location_idx: int) -> int | None:
+        """Select request using RCL of length 5 to insert at the insertion location."""
+        rcl = self.get_rcl_of_next_requests(route, excluded_requests, insertion_location_idx)
+        return random.choice(rcl)
 
 
 if __name__ == '__main__':
