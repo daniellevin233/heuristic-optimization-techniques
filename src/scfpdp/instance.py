@@ -1,6 +1,6 @@
 import numpy as np
 import math
-# from scipy.spatial.distance import cdist
+from scipy.spatial.distance import cdist
 
 from line_profiler import profile
 
@@ -133,15 +133,9 @@ class SCFPDPInstance:
         # Convert Point objects to numpy coordinate array
         coords = np.array([[loc.x, loc.y] for loc in all_locations], dtype=np.float64)
 
-        # Vectorized distance computation
-        # coords[:, np.newaxis, :] has shape (2n + 1, 1, 2)
-        # coords[np.newaxis, :, :] has shape (1, 2n + 1, 2)
-        # Broadcasting creates (2n + 1, 2n + 1, 2) array of coordinate differences
-        diff = coords[:, np.newaxis, :] - coords[np.newaxis, :, :]
-
-        # Compute Euclidean distances and round up
-        distances_squared = np.sum(diff**2, axis=2)  # Shape: (2n + 1, 2n + 1)
-        distances = np.sqrt(distances_squared)
+        # Use scipy's cdist for optimized pairwise distance computation
+        # cdist computes distances without creating large intermediate arrays
+        distances = cdist(coords, coords, metric='euclidean')
         self.distance_matrix = np.ceil(distances)
 
 

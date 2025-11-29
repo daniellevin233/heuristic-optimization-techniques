@@ -113,10 +113,12 @@ def main():
 
     instance = competition_instance
 
-    beam_search = SCFPDPBeamSearch(instance, 10, 4)
+    beta = 10
+    branching_factor = 4
+    beam_search = SCFPDPBeamSearch(instance, beta, branching_factor)
     result = beam_search.solve()
     beam_search.print_result(result)
-    # result[0].write_to_file()
+    # result[0].write_to_file(f"beam_search_{beta}_{branching_factor}")
 
 
 if __name__ == "__main__":

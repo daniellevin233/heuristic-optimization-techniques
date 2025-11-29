@@ -80,7 +80,7 @@ def plot_experiment_results(config: ExperimentPlotConfig):
         config: ExperimentPlotConfig containing all plot parameters
     """
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=config.figsize)
-    fig.suptitle(config.algorithm_name, fontsize=14, fontweight='bold')
+    fig.suptitle(config.plot_suptitle, fontsize=14, fontweight='bold')
 
     # Calculate bar width for plot 1 if relative width is specified
     bar_width1 = config.plot1.bar_width
@@ -154,7 +154,7 @@ def plot_experiment_results(config: ExperimentPlotConfig):
         plots_dir.mkdir(exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = plots_dir / f"{config.algorithm_name.lower().replace(' ', '_')}_results_{timestamp}.png"
+        filename = plots_dir / f"{config.plot_suptitle.lower().replace(' ', '_')}_results_{timestamp}.png"
         plt.savefig(filename, dpi=300, bbox_inches='tight')
         print(f"Plot saved as '{filename}'")
 

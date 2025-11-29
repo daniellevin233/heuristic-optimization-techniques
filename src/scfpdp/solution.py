@@ -238,7 +238,7 @@ class SCFPDPSolution(Solution):
     def apply_neighborhood_move(self, move):
         move.move(self)
 
-    def write_to_file(self) -> None:
+    def write_to_file(self, algorithm: str) -> None:
         instance_file = Path(self.inst.file_name)
         instance_name = instance_file.stem
 
@@ -252,7 +252,7 @@ class SCFPDPSolution(Solution):
         solutions_dir = project_root / "solutions"
         solutions_dir.mkdir(parents=True, exist_ok=True)
 
-        output_file = solutions_dir / f"{instance_name}.txt"
+        output_file = solutions_dir / f"{instance_name}_{algorithm}_{self.calc_objective():.2f}.txt"
         
         with open(output_file, 'w') as f:
             f.write(instance_name + "\n")

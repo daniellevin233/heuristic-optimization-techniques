@@ -1,0 +1,42 @@
+from src.experiments.construction_heuristics import run_randomized_construction_experiments_multi_size, InstanceType
+from src.scfpdp.instance import SCFPDPInstance
+from src.utils import find_project_root
+
+
+def profile_instance_loading():
+    """Profile instance loading for different sizes."""
+    project_root = find_project_root()
+
+    # Test different instance sizes
+    instance_sizes = ["2000", "5000", "10000"]
+
+    for size in instance_sizes:
+        print(f"\n{'='*60}")
+        print(f"Profiling instance size: {size}")
+        print('='*60)
+
+        instance_dir = project_root / "instances" / size / "competition"
+        instance_files = sorted(instance_dir.glob("*.txt"))
+
+        if instance_files:
+            # Profile just the first instance of each size
+            instance_file = instance_files[0]
+            print(f"Loading: {instance_file.name}")
+
+            # This will be profiled line-by-line
+            instance = SCFPDPInstance(str(instance_file))
+
+            print(f"Loaded instance with n={instance.n}")
+
+def profile_randomized_construction():
+    run_randomized_construction_experiments_multi_size(
+        instance_sizes=["200", "1000"],#, "2000"],
+        instance_type=InstanceType.COMPETITION,
+        top_k_values=[1,3,5,10,20,30,40,50,75,100],
+        n_runs=10,
+        save_plot=False
+    )
+
+if __name__ == "__main__":
+    # profile_instance_loading()
+    profile_randomized_construction()

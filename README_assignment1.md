@@ -104,10 +104,21 @@ Implement one of the following:
 - Prepare plots showing the above measures concisely
 
 ### 8. Report
-Write a report containing:
-- Description of algorithms
-- Experimental results
-- Conclusions and analysis
+
+You are expected to hand in a concise report via TUWEL containing (if not otherwise specified) at least:
+
+#### Required Content
+- **Algorithm descriptions:** The adaptations, problem-specific aspects, parameters etc., NOT the general procedure
+- **Experimental setup:** Machine specifications, tested algorithm configurations
+- **Results table:** Best objective values and runtimes plus mean/std. deviation for randomized algorithms over multiple runs for each published instance and algorithm
+  - Infeasible solutions must be excluded from these calculations
+- **Instance usage:** Use training instances to tune parameters; report results on test instances
+- **Runtime limit:** Maximum 15 minutes per instance on your machine
+
+#### What NOT to Include
+- The general procedure of the algorithms
+- Multithreading/multiprocessing/GPU usage – use only single CPU threads
+- Repetition of the problem description
 
 ## Development Questions
 

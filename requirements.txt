@@ -2,3 +2,4 @@ matplotlib
 numpy
 pymhlib
 line_profiler
+scipy
