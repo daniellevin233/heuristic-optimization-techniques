@@ -3,3 +3,4 @@ numpy
 pymhlib
 line_profiler
 scipy
+tqdm

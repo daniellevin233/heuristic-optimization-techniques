@@ -102,7 +102,7 @@ class GreedyConstructionHeuristic(ConstructionHeuristic):
 
 
 class RandomizedConstructionHeuristic(GreedyConstructionHeuristic):
-    def __init__(self, initial_solution: SCFPDPSolution, top_random_pickups_to_consider: int = 5):
+    def __init__(self, initial_solution: SCFPDPSolution, top_random_pickups_to_consider: int = 10):
         super().__init__(initial_solution)
         self.top_random_pickups_to_consider = top_random_pickups_to_consider
 
@@ -127,7 +127,7 @@ class RandomizedConstructionHeuristic(GreedyConstructionHeuristic):
         return [c[1] for c in rcl]
 
     def _select_next_request(self, route: Route, excluded_requests: set[int], insertion_location_idx: int) -> int | None:
-        """Select request using RCL of length 5 to insert at the insertion location."""
+        """Select request using RCL of length 10 to insert at the insertion location."""
         rcl = self.get_rcl_of_next_requests(route, excluded_requests, insertion_location_idx)
         return random.choice(rcl)
 
