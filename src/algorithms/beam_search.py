@@ -1,7 +1,7 @@
 import random
 import time
 
-from scfpdp.construction_heuristics import RandomizedConstructionHeuristic
+from src.scfpdp.construction_heuristics import RandomizedConstructionHeuristic
 from src.scfpdp.instance import SCFPDPInstance
 from src.scfpdp.solution import SCFPDPSolution
 

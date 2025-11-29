@@ -255,9 +255,9 @@ class SCFPDPSolution(Solution):
         output_file = solutions_dir / f"{instance_name}.txt"
         
         with open(output_file, 'w') as f:
-            f.write(f"{instance_name} {self.calc_objective():.2f}\n")
+            f.write(instance_name + "\n")
             for route in self.routes:
-                route_str = ' '.join(str(loc) for loc in route.route)
+                route_str = ' '.join(str(loc + 1) for loc in route.route)
                 f.write(f"{route_str}\n")
 
 

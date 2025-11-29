@@ -10,8 +10,6 @@ if __name__ == "__main__":
     instance = competition_instance
 
     sol = SCFPDPSolution(instance)
-
-    # Construct using previously implemented heuristic
     sol.initialize(0)
 
     print("Initial solution:")

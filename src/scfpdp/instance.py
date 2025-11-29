@@ -65,16 +65,14 @@ class SCFPDPInstance:
             x_dropoff1 y_dropoff1 x_dropoff2 y_dropoff2 ... x_dropoffn y_dropoffn
         """
         from pathlib import Path
+        from src.utils import find_project_root
 
         file_path = Path(file_name)
         if not file_path.is_absolute():
-            current = Path.cwd()
-            while current != current.parent:
-                candidate = current / "instances" / file_name
-                if candidate.exists():
-                    file_path = candidate
-                    break
-                current = current.parent
+            project_root = find_project_root()
+            candidate = project_root / "instances" / file_name
+            if candidate.exists():
+                file_path = candidate
             else:
                 file_path = Path("instances") / file_name
 
