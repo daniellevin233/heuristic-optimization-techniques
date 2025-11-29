@@ -279,7 +279,7 @@ def evaluate_beam_search_multi_size(
 
 if __name__ == "__main__":
     all_instance_sizes = ["50", "100", "200", "500", "1000", "2000", "5000", "10000"]
-    instances_to_run = ["100", "500", "2000"]
+    instances_to_run = ["100", "200", "500"]
 
     # Default parameter ranges: smaller values, more of them
     beam_widths = [2, 3, 5, 7, 10, 15, 20, 25, 30]
