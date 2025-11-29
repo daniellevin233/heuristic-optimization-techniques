@@ -1,5 +1,8 @@
 import numpy as np
 import math
+# from scipy.spatial.distance import cdist
+
+from line_profiler import profile
 
 
 class Point:
@@ -53,6 +56,7 @@ class SCFPDPInstance:
         self._parse_file(file_name)
         self._compute_distances()
 
+    @profile
     def _parse_file(self, file_name: str):
         """
         File format:
@@ -111,8 +115,9 @@ class SCFPDPInstance:
             ]
         )
 
+    @profile
     def _compute_distances(self):
-        """Compute the distance matrix for all locations.
+        """Compute the distance matrix for all locations using vectorized operations.
 
         Distance is Euclidean distance rounded up to next integer.
 
@@ -124,16 +129,20 @@ class SCFPDPInstance:
         Total size: (2n + 1) x (2n + 1)
         """
         all_locations = [self.depot_location] + list(self.pickup_locations) + list(self.dropoff_locations)
-        size = len(all_locations)  # = 2n + 1
-        self.distance_matrix = np.zeros((size, size))
 
-        for i in range(size):
-            for j in range(i + 1, size):
-                dist = all_locations[i].distance_from(all_locations[j])
-                self.distance_matrix[i][j] = dist
-                self.distance_matrix[j][i] = dist
+        # Convert Point objects to numpy coordinate array
+        coords = np.array([[loc.x, loc.y] for loc in all_locations], dtype=np.float64)
 
-        assert np.array_equal(self.distance_matrix, self.distance_matrix.T)
+        # Vectorized distance computation
+        # coords[:, np.newaxis, :] has shape (2n + 1, 1, 2)
+        # coords[np.newaxis, :, :] has shape (1, 2n + 1, 2)
+        # Broadcasting creates (2n + 1, 2n + 1, 2) array of coordinate differences
+        diff = coords[:, np.newaxis, :] - coords[np.newaxis, :, :]
+
+        # Compute Euclidean distances and round up
+        distances_squared = np.sum(diff**2, axis=2)  # Shape: (2n + 1, 2n + 1)
+        distances = np.sqrt(distances_squared)
+        self.distance_matrix = np.ceil(distances)
 
 
     def __repr__(self):
@@ -144,3 +153,4 @@ if __name__ == '__main__':
     instance = SCFPDPInstance('10/test_instance_small.txt')
     print(instance)
     print(instance.distance_matrix)
+    assert np.array_equal(instance.distance_matrix, instance.distance_matrix.T)
