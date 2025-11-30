@@ -40,7 +40,7 @@ class GraspSCFPDP:
 
             obj = solution.calc_objective()
             if obj < best_obj:
-                best_solution = solution.copy()
+                best_solution = solution
                 best_obj = obj
 
             if verbose:
