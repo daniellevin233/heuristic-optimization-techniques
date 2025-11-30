@@ -3,7 +3,7 @@ from pathlib import Path
 
 from src.scfpdp.instance import SCFPDPInstance
 from src.scfpdp.solution import SCFPDPSolution
-from src.scfpdp.construction_heuristics import RandomizedConstructionHeuristic
+from src.algorithms.construction_heuristics import RandomizedConstructionHeuristic
 from src.scfpdp.neighborhoods_scfpdp import (
     InsertNeighborhood,
     SwapNeighborhood,

@@ -1,6 +1,6 @@
 from src.scfpdp.solution import SCFPDPSolution
 from src.scfpdp.instance import SCFPDPInstance
-from src.scfpdp.construction_heuristics import GreedyConstructionHeuristic
+from src.algorithms.construction_heuristics import GreedyConstructionHeuristic
 from src.scfpdp.local_search import LocalSearch
 from src.scfpdp.neighborhoods_scfpdp import InsertNeighborhood, SwapNeighborhood, RelocateNeighborhood
 from src.scfpdp.step_strategies import FirstImprovement, BestImprovement
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     competition_instance = SCFPDPInstance('100/competition/instance61_nreq100_nveh2_gamma91.txt')
     
     # Load instance
-    instance = competition_instance
+    instance = test_instance
     
     # Construct initial solution
     initial_solution = SCFPDPSolution(instance)

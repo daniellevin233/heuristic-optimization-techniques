@@ -52,12 +52,12 @@ class GraspSCFPDP:
 # Using VND as local search
 # ------------------------
 def make_grasp_with_vnd(instance, alpha=0.25, max_iter=50):
-    from src.scfpdp.construction_heuristics import RandomizedConstructionHeuristic
+    from src.algorithms.construction_heuristics import RandomizedConstructionHeuristic
     from src.scfpdp.local_search import VND
 
     def construct_fn(a: float) -> SCFPDPSolution:
         sol = SCFPDPSolution(instance)
-        RandomizedConstructionHeuristic(sol).construct(alpha=a)
+        RandomizedConstructionHeuristic(sol).construct()
         return sol
 
     # Define composite neighborhood for VND

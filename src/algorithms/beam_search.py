@@ -118,7 +118,7 @@ def main():
     beam_search = SCFPDPBeamSearch(instance, beta, branching_factor)
     result = beam_search.solve()
     beam_search.print_result(result)
-    result[0].write_to_file(f"beam_search_{beta}_{branching_factor}")
+    # result[0].write_to_file(f"beam_search_{beta}_{branching_factor}")
 
 
 if __name__ == "__main__":
