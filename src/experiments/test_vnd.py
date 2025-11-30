@@ -1,8 +1,11 @@
-from src.scfpdp.instance import SCFPDPInstance
-from src.scfpdp.solution import SCFPDPSolution, Route
-from src.scfpdp.neighborhoods_scfpdp import InsertNeighborhood, SwapNeighborhood, RelocateNeighborhood
-from src.scfpdp.local_search import VND, FirstImprovement
 import random
+
+from src.scfpdp.instance import SCFPDPInstance
+from src.scfpdp.local_search import VND, FirstImprovement
+from src.scfpdp.neighborhoods_scfpdp import (InsertNeighborhood,
+                                             RelocateNeighborhood,
+                                             SwapNeighborhood)
+from src.scfpdp.solution import Route, SCFPDPSolution
 
 
 def random_initial_solution(instance: SCFPDPInstance) -> SCFPDPSolution:
@@ -30,15 +33,16 @@ if __name__ == "__main__":
 
     # --- Generate a random initial solution ---
     initial_solution = random_initial_solution(instance)
-    print("Random initial solution objective:", initial_solution.calc_objective())
+    print("Random initial solution objective:",
+          initial_solution.calc_objective())
 
     # --- Run VND with your neighborhoods ---
-    neighborhoods = [InsertNeighborhood(), SwapNeighborhood(), RelocateNeighborhood()]
+    neighborhoods = [InsertNeighborhood(), SwapNeighborhood(),
+                     RelocateNeighborhood()]
     vnd = VND(neighborhoods, step_strategy=FirstImprovement())
 
     improved_solution = vnd.run(initial_solution)
     print("Objective after VND:", improved_solution.calc_objective())
-
 
 
 # from src.scfpdp.instance import SCFPDPInstance
@@ -51,9 +55,9 @@ if __name__ == "__main__":
 # def test_vnd_neighborhoods(instance: SCFPDPInstance):
 #     # Construct initial solution (greedy deterministic)
 #     initial_solution = SCFPDPSolution(inst=instance)
-#     from src.scfpdp.construction_heuristics import GreedyConstructionHeuristic
+#     from src.algorithms.construction_heuristics import GreedyConstructionHeuristic
 #     GreedyConstructionHeuristic(initial_solution).construct()
-    
+
 #     print(f"Initial solution objective: {initial_solution.calc_objective():.2f}\n")
 
 #     neighborhoods = [InsertNeighborhood(), SwapNeighborhood(), RelocateNeighborhood()]
@@ -76,7 +80,3 @@ if __name__ == "__main__":
 #     instance = competition_instance
 
 #     test_vnd_neighborhoods(instance)
-
-
-
-

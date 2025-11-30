@@ -1,15 +1,16 @@
 import random
 from typing import Callable
 
+from src.scfpdp.local_search import VND
+from src.scfpdp.neighborhoods_scfpdp import InsertNeighborhood, RelocateNeighborhood, SwapNeighborhood
 from src.scfpdp.solution import SCFPDPSolution
-from src.scfpdp.local_search import LocalSearch
-from src.scfpdp.neighborhoods_scfpdp import InsertNeighborhood, SwapNeighborhood, RelocateNeighborhood
 from src.scfpdp.step_strategies import FirstImprovement
+from src.algorithms.construction_heuristics import RandomizedConstructionHeuristic
 
 
 class GraspSCFPDP:
     """
-    GRASP for SCFPDP
+    GRASP for SCFPDP.
     - construct: randomized construction heuristic function(alpha) -> SCFPDPSolution
     - local_search: function(solution) -> SCFPDPSolution (could be VND or single neighborhood LS)
     """
@@ -60,11 +61,15 @@ def make_grasp_with_vnd(instance, alpha=0.25, max_iter=50):
         RandomizedConstructionHeuristic(sol).construct()
         return sol
 
-    # Define composite neighborhood for VND
     neighborhoods = [InsertNeighborhood(), SwapNeighborhood(), RelocateNeighborhood()]
     vnd_search = VND(neighborhoods=neighborhoods, step_strategy=FirstImprovement())
 
     def local_search_fn(solution: SCFPDPSolution) -> SCFPDPSolution:
         return vnd_search.run(solution)
 
-    return GraspSCFPDP(construct=construct_fn, local_search=local_search_fn, alpha=alpha, max_iter=max_iter)
+    return GraspSCFPDP(
+        construct=construct_fn,
+        local_search=local_search_fn,
+        alpha=alpha,
+        max_iter=max_iter
+    )
