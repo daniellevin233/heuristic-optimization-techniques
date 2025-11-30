@@ -1,7 +1,7 @@
 from enum import Enum
 
 from src.scfpdp.solution import SCFPDPSolution
-from scfpdp.neighbourhoods_scfpdp import (
+from src.scfpdp.neighbourhoods_scfpdp import (
     InsertNeighborhood,
     SwapNeighborhood,
     RelocateNeighborhood

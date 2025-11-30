@@ -1,6 +1,6 @@
 from src.scfpdp.instance import SCFPDPInstance
 from src.scfpdp.solution import SCFPDPSolution
-from src.scfpdp.local_improvement_scfpdp import VNDImprover, vnd_local_search, first_improvement, best_improvement
+from src.scfpdp.vnd import first_improvement, best_improvement
 from src.scfpdp.grasp import GraspSCFPDP
 
 if __name__ == "__main__":

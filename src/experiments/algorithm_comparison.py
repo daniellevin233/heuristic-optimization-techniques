@@ -487,4 +487,4 @@ if __name__ == "__main__":
     )
 
     # Plot comparison results
-    plot_comparison_results(summary, save_plot=True)
+    plot_comparison_results(summary, save_plot=False)

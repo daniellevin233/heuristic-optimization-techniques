@@ -135,6 +135,7 @@ class RandomizedConstructionHeuristic(GreedyConstructionHeuristic):
 if __name__ == '__main__':
     test_instance = SCFPDPInstance('10/test_instance_small.txt')
     competition_instance = SCFPDPInstance('1000/competition/instance61_nreq1000_nveh20_gamma879.txt')
+    # competition_instance = SCFPDPInstance('100/competition/instance61_nreq100_nveh2_gamma91.txt')
 
     instance = competition_instance
 
@@ -154,4 +155,4 @@ if __name__ == '__main__':
     print(f"Best solution ({best_algo}): ")
     print(best_solution)
 
-    best_solution.write_to_file(algorithm=best_algo)
+    # best_solution.write_to_file(algorithm=best_algo)

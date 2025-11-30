@@ -1,6 +1,6 @@
 import copy
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from pymhlib.solution import Solution
 
@@ -8,8 +8,9 @@ from src.scfpdp.instance import SCFPDPInstance
 
 
 class Route:
-    def __init__(self, instance: SCFPDPInstance):
+    def __init__(self, instance: SCFPDPInstance, delta_callback: Callable[[int, int], None]) -> None:
         self.instance = instance
+        self.delta_callback = delta_callback
         self.route: list[int] = []
         self.distance: int = 0
         self.served_requests: list[int] = []
@@ -21,11 +22,21 @@ class Route:
         return len(self.route)
 
     def recompute_route_distance(self) -> None:
+        old_distance = self.distance
+
+        if len(self.route) == 0:
+            self.distance = 0
+            self.delta_callback(self.distance, old_distance)
+            return
+
+        from_depot_distance = self.instance.distance_matrix[0][self.route[0] + 1]
+        to_depot_distance = self.instance.distance_matrix[0][self.route[-1] + 1]
         route_distance = 0
-        route_with_depots = [0] + self.route + [0]
-        for i in route_with_depots[:-1]:
-            route_distance += self.instance.distance_matrix[i][i + 1]
-        self.distance = route_distance
+        for i, source_location in enumerate(self.route[:-1]):
+            target_location = self.route[i + 1]
+            route_distance += self.instance.distance_matrix[source_location + 1][target_location + 1]
+        self.distance = from_depot_distance + route_distance + to_depot_distance
+        self.delta_callback(self.distance, old_distance)
 
     def insert_location(self, location_idx: int, at: int) -> None:
         if location_idx in self.route:
@@ -50,7 +61,6 @@ class Route:
         self.insert_location(request_id + self.instance.n, dropoff_at)
         self.check()
 
-        # todo delta evaluation will integrate here to replace this inefficient recalculation at every insert
         self.recompute_route_distance()
 
     def can_take_request(self, request_id: int, at_position: int) -> bool:
@@ -151,10 +161,14 @@ class SCFPDPSolution(Solution):
 
     to_maximize = False
 
-    def __init__(self, inst: SCFPDPInstance):
+    def __init__(self, inst: SCFPDPInstance, use_delta_eval: bool = False) -> None:
         super().__init__(inst)
-        self.routes: list[Route] = [Route(inst) for _ in range(inst.n_K)]
+        self.routes: list[Route] = [Route(inst, self.delta_evaluation) for _ in range(inst.n_K)]
         self.inst = inst  # this is overridden simply to help compiler with type hinting
+
+        self.use_delta_eval = use_delta_eval
+        self._cached_total_distance: int = 0
+        self._cached_sum_of_squares: int = 0
 
     def __repr__(self):
         is_valid = True
@@ -174,13 +188,37 @@ class SCFPDPSolution(Solution):
 
     def copy_from(self, other: 'SCFPDPSolution'):
         self.routes = copy.deepcopy(other.routes)
+        if self.use_delta_eval:
+            self._cached_total_distance = other._cached_total_distance
+            self._cached_sum_of_squares = other._cached_sum_of_squares
+
+            # Reconnect callbacks to this solution's method
+            for route in self.routes:
+                route.delta_callback = self.delta_evaluation
 
     def copy(self):
-        sol = SCFPDPSolution(self.inst)
+        sol = SCFPDPSolution(self.inst, self.use_delta_eval)
         sol.copy_from(self)
         return sol
 
-    def calc_objective(self):
+    def invalidate(self):
+        super().invalidate()
+        if self.use_delta_eval:
+            self._cached_total_distance = 0.0
+            self._cached_sum_of_squares = 0.0
+
+    def delta_evaluation(self, new_distance: int, old_distance: int) -> None:
+        if self.use_delta_eval:
+            self._cached_total_distance += (new_distance - old_distance)
+            self._cached_sum_of_squares += (new_distance ** 2 - old_distance ** 2)
+
+    def calc_objective(self) -> float:
+        if self.use_delta_eval:
+            if self._cached_sum_of_squares == 0:
+                return 0
+            jain = self._cached_total_distance / (self.inst.n_K * self._cached_sum_of_squares)
+            return self._cached_total_distance + self.inst.rho * (1 - jain)
+
         total_distance, sum_of_squares = 0, 0
         for route in self.routes:
             total_distance += route.distance
