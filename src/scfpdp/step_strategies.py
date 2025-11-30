@@ -1,8 +1,5 @@
 from abc import ABC, abstractmethod
-
-from pymhlib.solution import Solution
-
-from src.scfpdp.neighbourhoods import Neighborhood
+from src.scfpdp.neighborhoods_scfpdp import Neighborhood
 from src.scfpdp.solution import SCFPDPSolution
 
 
@@ -10,30 +7,35 @@ class StepStrategy(ABC):
     """Interface for defining how a local search step accepts a neighbor."""
 
     @abstractmethod
-    def improve(self, solution: Solution, neighborhood: Neighborhood) -> bool:
+    def improve(self, solution: SCFPDPSolution, neighborhood: Neighborhood) -> tuple[SCFPDPSolution, bool]:
         """
         Applies one step of improvement.
 
         :param solution: current solution (mutated only on accepted moves)
-        :param neighborhood: neighborhood object with next_move(...) methods
-        :return: True if the solution was improved; False otherwise
+        :param neighborhood: neighborhood object with generate_neighbors() method
+        :return: (improved_solution, True/False)
         """
         pass
 
 
 class FirstImprovement(StepStrategy):
+    """Return the first improving neighbor found in the given neighborhood."""
+
     def improve(self, solution: SCFPDPSolution, neighborhood: Neighborhood) -> tuple[SCFPDPSolution, bool]:
-        """Returns first improving solution found across any neighborhood."""
         current_obj = solution.calc_objective()
+
+        # All neighbors yield SCFPDPSolution objects only
         for neighbor in neighborhood.generate_neighbors(solution):
             if neighbor.calc_objective() < current_obj:
                 return neighbor, True
+
         return solution, False
 
 
 class BestImprovement(StepStrategy):
+    """Evaluate all neighbors and return the best improving solution."""
+
     def improve(self, solution: SCFPDPSolution, neighborhood: Neighborhood) -> tuple[SCFPDPSolution, bool]:
-        """Evaluates all improving candidates and returns the best one."""
         best_sol = solution
         best_obj = solution.calc_objective()
         improved = False

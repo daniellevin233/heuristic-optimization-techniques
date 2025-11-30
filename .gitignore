@@ -207,3 +207,7 @@ marimo/_lsp/
 __marimo__/
 
 instances
+
+src/scfpdp/old_classes/
+
+ImplementationNotes.md

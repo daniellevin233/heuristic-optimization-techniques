@@ -1,58 +1,61 @@
 import time
+from typing import Iterable, Optional
+
+from src.scfpdp.solution import SCFPDPSolution
+from src.scfpdp.neighborhoods_scfpdp import Neighborhood
+from src.scfpdp.step_strategies import FirstImprovement, BestImprovement
+
 
 class LocalSearch:
-    def __init__(self, solution, neighborhoods):
-        """
-        solution      -> SCFPDPSolution object (will be modified)
-        neighborhoods -> list of neighborhood functions
-                         each fn: move = neighborhood(solution)
-                         where move = dict or tuple that contains (delta, move_data)
-        """
-        self.solution = solution
-        self.neighborhoods = neighborhoods
+    """
+    Generic LS core:
+    - step_strategy.improve(solution, neighborhood) → (candidate, improved)
+    - deterministic neighborhood order
+    - restart after each improvement (VND-like)
+    """
 
-    def run(self, mode="first", time_limit=900):
+    def __init__(self, step_strategy, neighborhoods: Iterable[Neighborhood]):
+        self.step_strategy = step_strategy
+        self.neighborhoods = list(neighborhoods)
+
+    def search_once(self, solution: SCFPDPSolution) -> tuple[SCFPDPSolution, bool]:
         """
-        mode        -> "first" or "best"
-        time_limit  -> seconds
+        Perform one VND-style sweep over all neighborhoods.
+        """
+        current = solution
+        for nh in self.neighborhoods:
+            candidate, improved = self.step_strategy.improve(current, nh)
+            if improved:
+                return candidate, True
+        return current, False
+
+    def run(self, solution: SCFPDPSolution, time_limit: Optional[float] = None) -> SCFPDPSolution:
+        """
+        Repeated descent until no neighborhood improves the solution
+        or time limit expires.
         """
         start = time.time()
-        improved = True
+        current = solution
 
-        while improved and (time.time() - start) < time_limit:
-            improved = self._search_iteration(mode)
+        while True:
+            if time_limit and (time.time() - start) >= time_limit:
+                return current
 
-        return self.solution
+            new_sol, improved = self.search_once(current)
+            if not improved:
+                return current
+            current = new_sol
 
-    def _search_iteration(self, mode):
-        """
-        Perform one iteration over all neighborhoods.
-        Returns True if improvement found, else False.
-        """
-        best_move = None
-        best_delta = 0  # improvement should be negative in minimization
 
-        for neighborhood in self.neighborhoods:
-            move = neighborhood(self.solution)
+class VND:
+    """
+    Simple VND wrapper using LocalSearch.
+    """
 
-            if move is None:
-                continue  # no move found in this neighborhood
+    def __init__(self, neighborhoods, step_strategy=None):
+        if step_strategy is None:
+            step_strategy = FirstImprovement()
+        self.ls = LocalSearch(step_strategy, neighborhoods)
 
-            delta = move.get("delta", 0)
-
-            # FIRST IMPROVEMENT?
-            if mode == "first" and delta < 0:
-                self.solution.apply_move(move)
-                return True
-
-            # BEST IMPROVEMENT?
-            if mode == "best" and delta < best_delta:
-                best_delta = delta
-                best_move = move
-
-        # if best move was found, apply
-        if mode == "best" and best_move is not None:
-            self.solution.apply_move(best_move)
-            return True
-
-        return False
+    def run(self, solution: SCFPDPSolution, time_limit: Optional[float] = None) -> SCFPDPSolution:
+        return self.ls.run(solution, time_limit=time_limit)

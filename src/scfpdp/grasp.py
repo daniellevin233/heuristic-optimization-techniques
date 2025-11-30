@@ -1,21 +1,18 @@
-"""
-GRASP for the SCFPDP (Selective Capacitated Fair Pickup and Delivery Problem)
-
-- Construction is randomized greedy (user-provided function)
-- Local Search uses injected strategies (e.g., VND)
-"""
-
 import random
 from typing import Callable
 
 from src.scfpdp.solution import SCFPDPSolution
+from src.scfpdp.local_search import LocalSearch
+from src.scfpdp.neighborhoods_scfpdp import InsertNeighborhood, SwapNeighborhood, RelocateNeighborhood
+from src.scfpdp.step_strategies import FirstImprovement
 
-
-# ===============================
-#         GRASP CLASS
-# ===============================
 
 class GraspSCFPDP:
+    """
+    GRASP for SCFPDP
+    - construct: randomized construction heuristic function(alpha) -> SCFPDPSolution
+    - local_search: function(solution) -> SCFPDPSolution (could be VND or single neighborhood LS)
+    """
 
     def __init__(
         self,
@@ -24,74 +21,50 @@ class GraspSCFPDP:
         alpha: float = 0.25,
         max_iter: int = 50
     ):
-        """
-        Parameters
-        ----------
-        construct : function(alpha) -> SCFPDPSolution
-            Greedy randomized construction receiving alpha.
-        local_search : function(solution) -> SCFPDPSolution
-            Example: VND(modes="swap-insert-relocate")
-        alpha : float
-            0 = pure greedy, 1 = purely random
-        max_iter : int
-            number of independent GRASP runs
-        """
         self.construct = construct
         self.local_search = local_search
         self.alpha = alpha
         self.max_iter = max_iter
 
     def run(self, verbose: bool = False) -> SCFPDPSolution:
-        """
-        Executes the GRASP metaheuristic.
-        """
-        best = None
+        best_solution = None
+        best_obj = float("inf")
 
-        for it in range(self.max_iter):
+        for iteration in range(1, self.max_iter + 1):
             # --- Construction Phase ---
-            sol = self.construct(self.alpha)
+            solution = self.construct(self.alpha)
 
             # --- Local Search Phase ---
-            sol = self.local_search(sol)
+            solution = self.local_search(solution)
 
-            # --- Update Best ---
-            if best is None or sol.cost < best.cost:
-                best = sol.copy()
+            obj = solution.calc_objective()
+            if obj < best_obj:
+                best_solution = solution.copy()
+                best_obj = obj
 
             if verbose:
-                print(f"[GRASP] Iter {it+1}/{self.max_iter} best={best.cost:.2f}")
+                print(f"[GRASP] Iter {iteration}/{self.max_iter}, current best={best_obj:.2f}")
 
-        return best
-
-
-# ===============================
-#  OPTIONAL ALPHA VARIANTS
-# ===============================
-
-def alpha_random(min_a=0.05, max_a=0.35):
-    """ Dynamic alpha for reactive GRASP """
-    return random.uniform(min_a, max_a)
+        return best_solution
 
 
-def alpha_constant(a=0.25):
-    """ Constant alpha (default greedy/rand mix) """
-    return a
+# ------------------------
+# Using VND as local search
+# ------------------------
+def make_grasp_with_vnd(instance, alpha=0.25, max_iter=50):
+    from src.scfpdp.construction_heuristics import RandomizedConstructionHeuristic
+    from src.scfpdp.local_search import VND
 
+    def construct_fn(a: float) -> SCFPDPSolution:
+        sol = SCFPDPSolution(instance)
+        RandomizedConstructionHeuristic(sol).construct(alpha=a)
+        return sol
 
-# ===============================
-#  FACTORY HELPER
-# ===============================
+    # Define composite neighborhood for VND
+    neighborhoods = [InsertNeighborhood(), SwapNeighborhood(), RelocateNeighborhood()]
+    vnd_search = VND(neighborhoods=neighborhoods, step_strategy=FirstImprovement())
 
-def make_grasp(
-    construct: Callable[[float], SCFPDPSolution],
-    local_search: Callable[[SCFPDPSolution], SCFPDPSolution],
-    alpha=0.25,
-    iters=50
-) -> GraspSCFPDP:
-    """ Shortcut for cleaner client code """
-    return GraspSCFPDP(
-        construct=construct,
-        local_search=local_search,
-        alpha=alpha,
-        max_iter=iters
-    )
+    def local_search_fn(solution: SCFPDPSolution) -> SCFPDPSolution:
+        return vnd_search.run(solution)
+
+    return GraspSCFPDP(construct=construct_fn, local_search=local_search_fn, alpha=alpha, max_iter=max_iter)
