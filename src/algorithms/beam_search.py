@@ -1,15 +1,15 @@
 import random
 import time
 
-from src.scfpdp.construction_heuristics import RandomizedConstructionHeuristic
+from src.algorithms.construction_heuristics import RandomizedConstructionHeuristic
 from src.scfpdp.instance import SCFPDPInstance
 from src.scfpdp.solution import SCFPDPSolution
 
 
 class SCFPDPBeamSearch:
-    def __init__(self, instance: SCFPDPInstance, beam_width: int, branching_factor: int = 2):
+    def __init__(self, instance: SCFPDPInstance, beam_width: int, branching_factor: int = 2, use_delta_eval: bool = False):
         self.instance: SCFPDPInstance = instance
-        self.solution = SCFPDPSolution(instance)
+        self.solution = SCFPDPSolution(instance, use_delta_eval)
         self.branching_factor = branching_factor
         self.beam_width = beam_width
 

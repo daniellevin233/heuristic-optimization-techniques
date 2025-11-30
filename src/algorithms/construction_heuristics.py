@@ -137,22 +137,22 @@ if __name__ == '__main__':
     competition_instance = SCFPDPInstance('1000/competition/instance61_nreq1000_nveh20_gamma879.txt')
     # competition_instance = SCFPDPInstance('100/competition/instance61_nreq100_nveh2_gamma91.txt')
 
-    instance = competition_instance
+    instance = test_instance
 
-    _initial_solution = SCFPDPSolution(inst=instance)
+    _initial_solution = SCFPDPSolution(inst=instance, use_delta_eval=True)
     GreedyConstructionHeuristic(_initial_solution).construct()
     print("Greedy solution: ")
     print(_initial_solution)
 
-    _initial_solution_1 = SCFPDPSolution(inst=instance)
-    RandomizedConstructionHeuristic(_initial_solution_1).construct()
-    print("\n\nRandomized solution: ")
-    print(_initial_solution_1)
-
-    best_solution = _initial_solution if _initial_solution.calc_objective() < _initial_solution_1.calc_objective() else _initial_solution_1
-    best_algo = "greedy_construction" if _initial_solution.calc_objective() < _initial_solution_1.calc_objective() else "randomized_construction"
-
-    print(f"Best solution ({best_algo}): ")
-    print(best_solution)
+    # _initial_solution_1 = SCFPDPSolution(inst=instance)
+    # RandomizedConstructionHeuristic(_initial_solution_1).construct()
+    # print("\n\nRandomized solution: ")
+    # print(_initial_solution_1)
+    #
+    # best_solution = _initial_solution if _initial_solution.calc_objective() < _initial_solution_1.calc_objective() else _initial_solution_1
+    # best_algo = "greedy_construction" if _initial_solution.calc_objective() < _initial_solution_1.calc_objective() else "randomized_construction"
+    #
+    # print(f"Best solution ({best_algo}): ")
+    # print(best_solution)
 
     # best_solution.write_to_file(algorithm=best_algo)

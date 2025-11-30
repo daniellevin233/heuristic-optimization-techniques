@@ -3,7 +3,7 @@ from enum import StrEnum
 
 from src.scfpdp.instance import SCFPDPInstance
 from src.scfpdp.solution import SCFPDPSolution
-from src.scfpdp.construction_heuristics import GreedyConstructionHeuristic, RandomizedConstructionHeuristic
+from src.algorithms.construction_heuristics import GreedyConstructionHeuristic, RandomizedConstructionHeuristic
 from src.utils import find_project_root, plot_experiment_results, ExperimentPlotConfig, PlotData
 
 

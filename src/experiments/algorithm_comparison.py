@@ -20,7 +20,10 @@ from tqdm import tqdm
 
 from src.scfpdp.instance import SCFPDPInstance
 from src.scfpdp.solution import SCFPDPSolution
-from src.scfpdp.construction_heuristics import GreedyConstructionHeuristic, RandomizedConstructionHeuristic
+from src.algorithms.construction_heuristics import GreedyConstructionHeuristic, RandomizedConstructionHeuristic
+from src.algorithms.beam_search import SCFPDPBeamSearch
+from src.algorithms.sa import SCFPDPSA
+from src.scfpdp.neighbourhoods import RelocateNeighborhood
 from src.experiments.construction_heuristics import InstanceType
 from src.utils import find_project_root
 
@@ -476,15 +479,127 @@ def compare_greedy_vs_randomized(
     )
 
 
+# ==================== Metaheuristic Algorithm Wrappers ====================
+
+class BeamSearchWrapper:
+    """Wrapper to make Beam Search compatible with comparison framework."""
+
+    def __init__(self, solution: SCFPDPSolution, beam_width: int, branching_factor: int, use_delta_eval: bool = False):
+        self.solution = solution
+        self.beam_width = beam_width
+        self.branching_factor = branching_factor
+        self.use_delta_eval = use_delta_eval
+
+    def construct(self):
+        """Run beam search and update solution in place."""
+        beam_search = SCFPDPBeamSearch(
+            self.solution.inst,
+            self.beam_width,
+            self.branching_factor,
+            self.use_delta_eval
+        )
+        solution, _ = beam_search.solve()
+        if solution:
+            self.solution.copy_from(solution)
+
+
+class SAWrapper:
+    """Wrapper to make SA compatible with comparison framework."""
+
+    def __init__(self, solution: SCFPDPSolution, sa_settings: dict, use_delta_eval: bool = False):
+        self.solution = solution
+        self.sa_settings = sa_settings
+        self.use_delta_eval = use_delta_eval
+
+    def construct(self):
+        """Run SA and update solution in place."""
+        sa_solver = SCFPDPSA(
+            self.solution.inst,
+            RelocateNeighborhood(),
+            self.sa_settings,
+            self.use_delta_eval
+        )
+        best_solution = sa_solver.solve()
+        self.solution.copy_from(best_solution)
+
+
+def compare_sa_vs_beam_search(
+    instance_sizes: list[str],
+    instance_type: InstanceType = InstanceType.COMPETITION,
+    sa_settings: dict = None,
+    beam_width: int = 3,
+    branching_factor: int = 10,
+    use_delta_eval: bool = False
+) -> ExperimentSummary:
+    """
+    Compare Simulated Annealing with Beam Search on competition instances.
+
+    Args:
+        instance_sizes: List of instance sizes (e.g., ["50", "100", "200"])
+        instance_type: Type of instances (default: COMPETITION)
+        sa_settings: SA configuration dict (if None, uses defaults)
+        beam_width: Beam width for beam search
+        branching_factor: Branching factor for beam search
+        use_delta_eval: Whether to use delta evaluation
+
+    Returns:
+        ExperimentSummary with comparison results
+    """
+    # Default SA settings if not provided
+    if sa_settings is None:
+        sa_settings = {
+            'mh_titer': 10000,
+            'mh_sa_T_init': 50.0,
+            'mh_sa_alpha': 0.90,
+            'mh_sa_equi_iter': 1000,
+            'mh_checkit': True,
+            'mh_tciter': -1,
+            'mh_ttime': -1,
+            'mh_tctime': -1,
+            'mh_tobj': -1,
+            'mh_lnewinc': False,
+            'mh_lfreq': 0,
+            'mh_workers': 1
+        }
+
+    algorithm1_config = AlgorithmConfig(
+        name=f"SA",
+        algorithm_class=SAWrapper,
+        init_kwargs={"sa_settings": sa_settings, "use_delta_eval": use_delta_eval}
+    )
+
+    algorithm2_config = AlgorithmConfig(
+        name=f"BS",
+        algorithm_class=BeamSearchWrapper,
+        init_kwargs={
+            "beam_width": beam_width,
+            "branching_factor": branching_factor,
+            "use_delta_eval": use_delta_eval
+        }
+    )
+
+    return compare_algorithms_across_sizes(
+        instance_sizes=instance_sizes,
+        instance_type=instance_type,
+        algorithm1_config=algorithm1_config,
+        algorithm2_config=algorithm2_config,
+    )
+
+
 if __name__ == "__main__":
     all_instance_sizes = ["50", "100", "200", "500", "1000", "2000", "5000", "10000"]
-    instances_to_run = all_instance_sizes
+    instances_to_run = all_instance_sizes[:4]
 
-    summary = compare_greedy_vs_randomized(
+    # summary = compare_greedy_vs_randomized(
+    #     instance_sizes=instances_to_run,
+    #     instance_type=InstanceType.TEST,
+    #     randomized_top_k=10
+    # )
+
+    summary = compare_sa_vs_beam_search(
         instance_sizes=instances_to_run,
         instance_type=InstanceType.TEST,
-        randomized_top_k=10
     )
 
     # Plot comparison results
-    plot_comparison_results(summary, save_plot=False)
+    plot_comparison_results(summary, save_plot=True)

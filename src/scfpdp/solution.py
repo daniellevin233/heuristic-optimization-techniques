@@ -8,9 +8,10 @@ from src.scfpdp.instance import SCFPDPInstance
 
 
 class Route:
-    def __init__(self, instance: SCFPDPInstance, delta_callback: Callable[[int, int], None]) -> None:
+    def __init__(self, instance: SCFPDPInstance, delta_callback: Callable[[int, int], None], use_delta_eval: bool = False) -> None:
         self.instance = instance
         self.delta_callback = delta_callback
+        self.use_delta_eval = use_delta_eval
         self.route: list[int] = []
         self.distance: int = 0
         self.served_requests: list[int] = []
@@ -21,7 +22,25 @@ class Route:
     def __len__(self) -> int:
         return len(self.route)
 
+    def _get_distance_between(self, loc1: int | None, loc2: int | None) -> int:
+        """
+        Get distance between two locations. None represents depot.
+        loc1 and loc2 are location indices as they appear in self.route.
+        """
+        if loc1 is None:
+            idx1 = 0  # depot
+        else:
+            idx1 = loc1 + 1  # location indices are offset by 1 in distance_matrix
+
+        if loc2 is None:
+            idx2 = 0  # depot
+        else:
+            idx2 = loc2 + 1
+
+        return self.instance.distance_matrix[idx1][idx2]
+
     def recompute_route_distance(self) -> None:
+        """Full recalculation of route distance. Used for verification and initialization."""
         old_distance = self.distance
 
         if len(self.route) == 0:
@@ -37,6 +56,48 @@ class Route:
             route_distance += self.instance.distance_matrix[source_location + 1][target_location + 1]
         self.distance = from_depot_distance + route_distance + to_depot_distance
         self.delta_callback(self.distance, old_distance)
+
+    def _calculate_insertion_delta(self, location_idx: int, at: int) -> int:
+        """
+        Calculate distance delta for inserting location_idx at position at.
+        Must be called BEFORE the actual insertion.
+
+        Returns the change in distance: (new_edges_distance - old_edges_distance)
+        """
+        # Get neighbors before and after insertion position
+        prev_loc = None if at == 0 else self.route[at - 1]
+        next_loc = None if at >= len(self.route) else self.route[at]
+
+        # Old edge: prev -> next
+        old_distance = self._get_distance_between(prev_loc, next_loc)
+
+        # New edges: prev -> location_idx -> next
+        new_distance = (self._get_distance_between(prev_loc, location_idx) +
+                       self._get_distance_between(location_idx, next_loc))
+
+        return new_distance - old_distance
+
+    def _calculate_removal_delta(self, at: int) -> int:
+        """
+        Calculate distance delta for removing location at position at.
+        Must be called BEFORE the actual removal.
+
+        Returns the change in distance: (new_edge_distance - old_edges_distance)
+        """
+        location_idx = self.route[at]
+
+        # Get neighbors
+        prev_loc = None if at == 0 else self.route[at - 1]
+        next_loc = None if at >= len(self.route) - 1 else self.route[at + 1]
+
+        # Old edges: prev -> location -> next
+        old_distance = (self._get_distance_between(prev_loc, location_idx) +
+                       self._get_distance_between(location_idx, next_loc))
+
+        # New edge: prev -> next
+        new_distance = self._get_distance_between(prev_loc, next_loc)
+
+        return new_distance - old_distance
 
     def insert_location(self, location_idx: int, at: int) -> None:
         if location_idx in self.route:
@@ -57,11 +118,31 @@ class Route:
         dropoff_at = pickup_at + dropoff_distance_from_pickup
         if dropoff_at > len(self.route) + 1:
             raise ValueError(f"Dropoff insertion index is out of range: {dropoff_at}; route length: {len(self.route)}")
-        self.insert_location(request_id, pickup_at)
-        self.insert_location(request_id + self.instance.n, dropoff_at)
-        self.check()
 
-        self.recompute_route_distance()
+        if self.use_delta_eval:
+            # TSP-like delta evaluation: calculate only affected edges
+            old_distance = self.distance
+            pickup_delta = self._calculate_insertion_delta(request_id, pickup_at)
+
+            # Insert pickup (modifies route)
+            self.insert_location(request_id, pickup_at)
+
+            # Calculate dropoff delta after pickup insertion
+            dropoff_delta = self._calculate_insertion_delta(request_id + self.instance.n, dropoff_at)
+
+            # Insert dropoff
+            self.insert_location(request_id + self.instance.n, dropoff_at)
+            self.check()
+
+            # Update distance incrementally
+            self.distance = old_distance + pickup_delta + dropoff_delta
+            self.delta_callback(self.distance, old_distance)
+        else:
+            # Full recalculation
+            self.insert_location(request_id, pickup_at)
+            self.insert_location(request_id + self.instance.n, dropoff_at)
+            self.check()
+            self.recompute_route_distance()
 
     def can_take_request(self, request_id: int, at_position: int) -> bool:
         return self.get_capacity_at_position(at_position) + self.instance.demands[request_id] <= self.instance.C
@@ -146,14 +227,37 @@ class Route:
         pickup_pos = self.route.index(pickup_idx)
         dropoff_pos = self.route.index(dropoff_idx)
 
-        for idx in sorted([pickup_pos, dropoff_pos], reverse=True):
-            self.route.pop(idx)
+        if self.use_delta_eval:
+            # TSP-like delta evaluation: calculate only affected edges
+            old_distance = self.distance
 
-        if request_id in self.served_requests:
-            self.served_requests.remove(request_id)
+            # Calculate deltas before removal (remove in reverse order)
+            # Remove dropoff first (higher index)
+            dropoff_delta = self._calculate_removal_delta(dropoff_pos)
+            self.route.pop(dropoff_pos)
 
-        self.check()
-        self.recompute_route_distance()
+            # Then remove pickup (index hasn't shifted because we removed from the end)
+            pickup_delta = self._calculate_removal_delta(pickup_pos)
+            self.route.pop(pickup_pos)
+
+            if request_id in self.served_requests:
+                self.served_requests.remove(request_id)
+
+            self.check()
+
+            # Update distance incrementally
+            self.distance = old_distance + pickup_delta + dropoff_delta
+            self.delta_callback(self.distance, old_distance)
+        else:
+            # Full recalculation
+            for idx in sorted([pickup_pos, dropoff_pos], reverse=True):
+                self.route.pop(idx)
+
+            if request_id in self.served_requests:
+                self.served_requests.remove(request_id)
+
+            self.check()
+            self.recompute_route_distance()
 
 
 
@@ -163,10 +267,10 @@ class SCFPDPSolution(Solution):
 
     def __init__(self, inst: SCFPDPInstance, use_delta_eval: bool = False) -> None:
         super().__init__(inst)
-        self.routes: list[Route] = [Route(inst, self.delta_evaluation) for _ in range(inst.n_K)]
+        self.use_delta_eval = use_delta_eval
+        self.routes: list[Route] = [Route(inst, self.delta_evaluation, use_delta_eval) for _ in range(inst.n_K)]
         self.inst = inst  # this is overridden simply to help compiler with type hinting
 
-        self.use_delta_eval = use_delta_eval
         self._cached_total_distance: int = 0
         self._cached_sum_of_squares: int = 0
 
@@ -202,7 +306,6 @@ class SCFPDPSolution(Solution):
         return sol
 
     def invalidate(self):
-        super().invalidate()
         if self.use_delta_eval:
             self._cached_total_distance = 0.0
             self._cached_sum_of_squares = 0.0
@@ -229,7 +332,7 @@ class SCFPDPSolution(Solution):
         return total_distance + self.inst.rho * (1 - jain)
 
     def initialize(self, k):
-        from src.scfpdp.construction_heuristics import GreedyConstructionHeuristic
+        from src.algorithms.construction_heuristics import GreedyConstructionHeuristic
         self.invalidate()
         GreedyConstructionHeuristic(self).construct()
 
@@ -266,7 +369,7 @@ class SCFPDPSolution(Solution):
 
     def random_move_delta_eval(self, neighborhood: "Neighborhood") -> tuple[Any, float]:
         move, test_solution = neighborhood.generate_random_neighbor(self)
-        if test_solution is None:  # no valid solution - let SA iterate further by skipping this infeasible
+        if test_solution is None:  # no valid solution - let SA iterate further by skipping this infeasible solution
             return None, float('inf')
         current_obj = self.calc_objective()
         new_obj = test_solution.calc_objective()

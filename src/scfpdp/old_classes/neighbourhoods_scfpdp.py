@@ -1,9 +1,6 @@
-# src/scfpdp/neighbourhoods.py
-
-from src.scfpdp.neighbourhood import Neighborhood
+from src.scfpdp.neighbourhoods import Neighborhood
 from src.scfpdp.solution import SCFPDPSolution
 from src.scfpdp.instance import SCFPDPInstance
-from src.scfpdp.moves import InsertMove
 
 
 class InsertRequestNeighborhood(Neighborhood):

@@ -5,7 +5,6 @@ GRASP for the SCFPDP (Selective Capacitated Fair Pickup and Delivery Problem)
 - Local Search uses injected strategies (e.g., VND)
 """
 
-import math
 import random
 from typing import Callable
 
