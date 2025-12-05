@@ -1,23 +1,16 @@
-# src/experiments/test_grasp.py
-from pathlib import Path
+# src/experiments/grasp.py
 
-from src.algorithms.construction_heuristics import \
-    RandomizedConstructionHeuristic
-from src.scfpdp.grasp import GraspSCFPDP
-from src.scfpdp.instance import SCFPDPInstance
-from src.scfpdp.local_search import VND
-from src.scfpdp.neighborhoods_scfpdp import (InsertNeighborhood,
-                                             RelocateNeighborhood,
-                                             SwapNeighborhood)
-from src.scfpdp.solution import SCFPDPSolution
+from src.algorithms.grasp import GraspSCFPDP
+from src.algorithms.vnd import FirstImprovement
+from src.instance import SCFPDPInstance
+from src.solution import SCFPDPSolution
 from src.algorithms.construction_heuristics import RandomizedConstructionHeuristic
-from src.scfpdp.neighborhoods_scfpdp import (
+from src.neighborhoods import (
     InsertNeighborhood,
     SwapNeighborhood,
     RelocateNeighborhood,
 )
-from src.scfpdp.local_search import VND
-from src.scfpdp.step_strategies import FirstImprovement
+from src.algorithms.local_search import VND
 
 
 # -----------------------------

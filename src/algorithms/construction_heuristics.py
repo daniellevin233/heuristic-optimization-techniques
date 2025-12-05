@@ -3,8 +3,8 @@ import random
 
 import numpy as np
 
-from src.scfpdp.instance import SCFPDPInstance
-from src.scfpdp.solution import SCFPDPSolution, Route
+from src.instance import SCFPDPInstance
+from src.solution import SCFPDPSolution, Route
 
 
 class ConstructionHeuristic(ABC):

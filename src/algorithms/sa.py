@@ -6,9 +6,9 @@ from pymhlib.solution import Solution
 
 from src.algorithms.beam_search import SCFPDPBeamSearch
 from src.algorithms.construction_heuristics import RandomizedConstructionHeuristic
-from src.scfpdp.solution import SCFPDPSolution
-from src.scfpdp.instance import SCFPDPInstance
-from src.scfpdp.neighbourhoods import Neighborhood, RelocateNeighborhood
+from src.solution import SCFPDPSolution
+from src.instance import SCFPDPInstance
+from src.neighborhoods import Neighborhood, RelocateNeighborhood
 
 
 class SCFPDPSA:

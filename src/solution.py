@@ -4,7 +4,7 @@ from typing import Any, Callable
 
 from pymhlib.solution import Solution
 
-from src.scfpdp.instance import SCFPDPInstance
+from src.instance import SCFPDPInstance
 
 
 class Route:

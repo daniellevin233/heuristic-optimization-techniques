@@ -1,8 +1,8 @@
 import random
-from src.scfpdp.instance import SCFPDPInstance
-from src.scfpdp.solution import SCFPDPSolution
-from src.scfpdp.neighborhoods_scfpdp import InsertNeighborhood, SwapNeighborhood, RelocateNeighborhood
-from src.scfpdp.local_search import LocalSearch, FirstImprovement
+from src.instance import SCFPDPInstance
+from src.solution import SCFPDPSolution
+from src.neighborhoods import InsertNeighborhood, SwapNeighborhood, RelocateNeighborhood
+from src.algorithms.local_search import LocalSearch, FirstImprovement
 
 
 def random_initial_solution(instance: SCFPDPInstance) -> SCFPDPSolution:

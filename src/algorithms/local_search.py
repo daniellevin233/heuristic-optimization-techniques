@@ -1,9 +1,9 @@
 import time
 from typing import Iterable, Optional
 
-from src.scfpdp.solution import SCFPDPSolution
-from src.scfpdp.neighborhoods_scfpdp import Neighborhood
-from src.scfpdp.step_strategies import FirstImprovement, BestImprovement
+from src.solution import SCFPDPSolution
+from src.neighborhoods import Neighborhood
+from src.algorithms.vnd import FirstImprovement
 
 
 class LocalSearch:

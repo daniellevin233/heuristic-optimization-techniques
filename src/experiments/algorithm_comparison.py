@@ -18,12 +18,12 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from tqdm import tqdm
 
-from src.scfpdp.instance import SCFPDPInstance
-from src.scfpdp.solution import SCFPDPSolution
+from src.instance import SCFPDPInstance
+from src.solution import SCFPDPSolution
 from src.algorithms.construction_heuristics import GreedyConstructionHeuristic, RandomizedConstructionHeuristic
 from src.algorithms.beam_search import SCFPDPBeamSearch
 from src.algorithms.sa import SCFPDPSA
-from src.scfpdp.neighbourhoods import RelocateNeighborhood
+from src.neighborhoods import RelocateNeighborhood
 from src.experiments.construction_heuristics import InstanceType
 from src.utils import find_project_root
 

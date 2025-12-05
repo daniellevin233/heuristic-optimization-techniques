@@ -148,3 +148,7 @@ if __name__ == '__main__':
     print(instance)
     print(instance.distance_matrix)
     assert np.array_equal(instance.distance_matrix, instance.distance_matrix.T)
+
+
+def scfpdp():
+    return None

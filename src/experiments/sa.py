@@ -16,8 +16,8 @@ import pandas as pd
 from tqdm import tqdm
 
 from src.algorithms.sa import SCFPDPSA
-from src.scfpdp.instance import SCFPDPInstance
-from src.scfpdp.neighbourhoods import RelocateNeighborhood
+from src.instance import SCFPDPInstance
+from src.neighborhoods import RelocateNeighborhood
 from src.experiments.construction_heuristics import InstanceType
 from src.utils import find_project_root, plot_experiment_results, ExperimentPlotConfig, PlotData
 
@@ -385,7 +385,7 @@ def run_all_cooling_experiments(
         print(f"  Size {size}: {len(instances)} instances")
     print("="*80)
 
-    experiment_results = {}
+    experiment_results = dict()
 
     # Experiment 1: Cooling Rate (alpha)
     experiment_results['alpha'] = run_cooling_experiment(

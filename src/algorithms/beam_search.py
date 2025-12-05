@@ -2,8 +2,8 @@ import random
 import time
 
 from src.algorithms.construction_heuristics import RandomizedConstructionHeuristic
-from src.scfpdp.instance import SCFPDPInstance
-from src.scfpdp.solution import SCFPDPSolution
+from src.instance import SCFPDPInstance
+from src.solution import SCFPDPSolution
 
 
 class SCFPDPBeamSearch:

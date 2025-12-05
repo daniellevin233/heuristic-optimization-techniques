@@ -1,13 +1,10 @@
-# src/experiments/run_experiments.py
-
-from pathlib import Path
-from src.scfpdp.instance import SCFPDPInstance
-from src.scfpdp.solution import SCFPDPSolution
-from src.algorithms.construction_heuristics import GreedyConstructionHeuristic
-from src.scfpdp.local_search import VND, LocalSearch
-from src.scfpdp.step_strategies import FirstImprovement, BestImprovement
-from src.scfpdp.neighborhoods_scfpdp import InsertNeighborhood, SwapNeighborhood, RelocateNeighborhood
-from src.scfpdp.grasp import GraspSCFPDP
+from src.algorithms.vnd import FirstImprovement, BestImprovement
+from src.instance import SCFPDPInstance
+from src.solution import SCFPDPSolution
+from src.algorithms.construction_heuristics import GreedyConstructionHeuristic, RandomizedConstructionHeuristic
+from src.algorithms.local_search import VND, LocalSearch
+from src.neighborhoods import InsertNeighborhood, SwapNeighborhood, RelocateNeighborhood
+from src.algorithms.grasp import GraspSCFPDP
 
 
 def run_local_search(instance_file: str):
@@ -37,7 +34,6 @@ def run_grasp(instance_file: str, alpha=0.3, max_iter=50):
 
     def construct_fn(a=None):
         sol = SCFPDPSolution(instance)
-        from src.scfpdp.construction_heuristics import RandomizedConstructionHeuristic
         RandomizedConstructionHeuristic(sol).construct()
         return sol
 

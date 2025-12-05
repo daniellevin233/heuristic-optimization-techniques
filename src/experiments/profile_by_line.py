@@ -1,5 +1,5 @@
 from src.experiments.construction_heuristics import run_randomized_construction_experiments_multi_size, InstanceType
-from src.scfpdp.instance import SCFPDPInstance
+from src.instance import SCFPDPInstance
 from src.utils import find_project_root
 
 

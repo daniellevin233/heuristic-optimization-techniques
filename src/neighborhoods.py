@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Generator, Any
 from dataclasses import dataclass
 
-from src.scfpdp.solution import SCFPDPSolution, Route
+from src.solution import SCFPDPSolution, Route
 
 
 class Neighborhood(ABC):

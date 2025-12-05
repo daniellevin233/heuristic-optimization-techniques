@@ -1,12 +1,11 @@
+from src.algorithms.vnd import FirstImprovement
+from src.instance import SCFPDPInstance
 from src.algorithms.construction_heuristics import GreedyConstructionHeuristic
-from src.scfpdp.instance import SCFPDPInstance
-from src.algorithms.construction_heuristics import GreedyConstructionHeuristic
-from src.scfpdp.local_search import LocalSearch
-from src.scfpdp.neighborhoods_scfpdp import (InsertNeighborhood,
-                                             RelocateNeighborhood,
-                                             SwapNeighborhood)
-from src.scfpdp.solution import SCFPDPSolution
-from src.scfpdp.step_strategies import BestImprovement, FirstImprovement
+from src.algorithms.local_search import LocalSearch
+from src.neighborhoods import (InsertNeighborhood,
+                                      RelocateNeighborhood,
+                                      SwapNeighborhood)
+from src.solution import SCFPDPSolution
 
 
 def test_neighborhood(solution: SCFPDPSolution, neighborhood_class):

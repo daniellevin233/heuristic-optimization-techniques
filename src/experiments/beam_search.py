@@ -13,7 +13,7 @@ from matplotlib.patches import Rectangle
 from tqdm import tqdm
 
 from src.algorithms.beam_search import SCFPDPBeamSearch
-from src.scfpdp.instance import SCFPDPInstance
+from src.instance import SCFPDPInstance
 from src.experiments.construction_heuristics import InstanceType
 from src.utils import find_project_root
 
