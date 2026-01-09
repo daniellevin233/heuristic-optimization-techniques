@@ -1,0 +1,274 @@
+\documentclass[a4paper]{scrartcl}
+
+% --- Packages ---
+\usepackage[a4paper, left=1.8cm, right=1.8cm, top=2.5cm, bottom=2cm]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath, amsfonts, amssymb}
+\usepackage{graphicx}
+\usepackage{svg}
+\usepackage{float}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{adjustbox}
+\usepackage{makecell}
+\usepackage{threeparttable}
+\usepackage{array}
+\usepackage{siunitx}
+\usepackage{multicol}
+\usepackage{wrapfig}
+\usepackage{caption}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{scrlayer-scrpage}
+\usepackage{xcolor}
+\usepackage{changepage}
+
+\renewcommand{\arraystretch}{1.4}
+\pagestyle{scrheadings}
+\automark{section}
+\ohead{\pagemark}
+\cfoot{}
+
+% --- Document Info ---
+\title{SCF-PDP Programming Exercise Report: Assignment 2}
+\subtitle{Heuristic Optimization Techniques, WS 2025}
+\author{
+    Daniel Levin (12433760)
+}
+\date{}
+
+% --- Custom Environments ---
+\newtheorem{ex}{Exercise}
+
+\begin{document}
+\maketitle
+
+% ============================================================
+% 1. Introduction / Overview
+% ============================================================
+\section{Introduction}
+This report presents our work on Assignment 2 of the SCF-PDP programming exercise. Building upon the algorithms developed in Assignment 1 (construction heuristics, local search, VND, GRASP, and Simulated Annealing), we implement two advanced metaheuristics, investigate alternative fairness measures, perform automated parameter tuning, and conduct statistical comparisons.
+
+% ============================================================
+% 2. General Setup (reuse/extend from Assignment 1)
+% ============================================================
+\section{General Setup}
+
+\subsection{Implementation Environment}
+% TODO: Update if any changes from Assignment 1
+The implementation continues in Python 3.13 with the following libraries:
+\begin{itemize}
+  \item \texttt{numpy} -- efficient array operations and numerical computations
+  \item \texttt{scipy} -- distance matrix computation and statistical functions
+  \item \texttt{pymhlib} -- metaheuristic framework
+  \item \texttt{pandas} -- result aggregation
+  \item \texttt{matplotlib} -- visualization
+  % TODO: Add any new libraries used
+\end{itemize}
+
+\subsection{Extensions from Assignment 1}
+% TODO: Describe any changes to core classes (SCFPDPInstance, SCFPDPSolution, Route)
+% TODO: Describe new data structures or utilities added
+
+% ============================================================
+% 3. Advanced Metaheuristic 1
+% ============================================================
+\section{Advanced Metaheuristic 1: [Algorithm Name]}
+% Choose from: Evolutionary/Genetic Algorithm, Ant Colony Optimization,
+% (Adaptive) Large Neighborhood Search, or Hybrid Algorithm
+
+\subsection{Idea}
+% TODO: Describe the main concept and motivation for choosing this algorithm
+
+\subsection{Algorithm Design}
+% TODO: Describe the algorithm structure
+% Include: representation, operators, key mechanisms
+
+\subsection{Implementation Details}
+% TODO: Describe specific implementation choices
+% Include: data structures, key functions
+
+\subsection{Parameters}
+% TODO: List all parameters with initial/default values
+% Example table:
+% \begin{table}[H]
+% \centering
+% \caption{Algorithm 1 Parameters}
+% \begin{tabular}{l l l}
+% \toprule
+% Parameter & Description & Default Value \\
+% \midrule
+% ... & ... & ... \\
+% \bottomrule
+% \end{tabular}
+% \end{table}
+
+% ============================================================
+% 4. Advanced Metaheuristic 2
+% ============================================================
+\section{Advanced Metaheuristic 2: [Algorithm Name]}
+% Choose a different algorithm from the list above
+
+\subsection{Idea}
+% TODO: Describe the main concept and motivation for choosing this algorithm
+
+\subsection{Algorithm Design}
+% TODO: Describe the algorithm structure
+
+\subsection{Implementation Details}
+% TODO: Describe specific implementation choices
+
+\subsection{Parameters}
+% TODO: List all parameters with initial/default values
+
+% ============================================================
+% 5. Fairness Measure Investigation (Task 2)
+% ============================================================
+\section{Fairness Measure Investigation}
+
+\subsection{Alternative Fairness Measures}
+We investigate two alternative fairness measures in addition to the Jain fairness index:
+
+\subsubsection{Max-Min Fairness}
+The max-min fairness measure is defined as:
+\[
+M = \frac{\min_{k \in K} d(R_k)}{\max_{k \in K} d(R_k)}
+\]
+% TODO: Describe interpretation and properties
+
+\subsubsection{Gini Coefficient (Inverted)}
+The inverted Gini coefficient is defined as:
+\[
+G = 1 - \frac{\sum_{k' \in K} \sum_{k'' \in K} |d(R_{k'}) - d(R_{k''})| }{2 n_K \sum_{k' \in K} d(R_{k'})}
+\]
+% TODO: Describe interpretation and properties
+
+\subsection{Implementation}
+% TODO: Describe how the fairness measures were implemented
+
+\subsection{Experimental Results}
+% TODO: Compare how objective values change with different fairness measures
+% TODO: Analyze how the number of stops per route changes
+% Include tables and figures
+
+\subsection{Analysis}
+% TODO: Discuss findings and insights about fairness measure impact
+
+% ============================================================
+% 6. Automated Parameter Tuning (Task 3)
+% ============================================================
+\section{Automated Parameter Tuning}
+
+\subsection{Tuning Methodology}
+% TODO: Describe the parameter tuning approach used
+% Options: Grid search, Random search, irace, ParamILS, SMAC, etc.
+
+\subsection{Tuning Setup}
+% TODO: Describe:
+% - Parameter ranges explored
+% - Tuning instances used
+% - Evaluation metrics
+% - Computational resources (e.g., cluster usage)
+
+\subsection{Algorithm 1 Tuning Results}
+% TODO: Present tuning results for first algorithm
+% Include: parameter configurations tested, best found parameters
+% Show results per instance size
+
+\subsection{Algorithm 2 Tuning Results}
+% TODO: Present tuning results for second algorithm
+
+\subsection{Instance Size Scalability}
+% TODO: Report which instance sizes can be solved in reasonable time
+
+% ============================================================
+% 7. Experimental Results on Test Instances (Task 4)
+% ============================================================
+\section{Experimental Results}
+ABCD
+
+\subsection{Experimental Setup}
+% TODO: Describe test instances, number of runs, time limits
+
+\subsection{Best Algorithm from Assignment 1}
+% TODO: Present results of the best algorithm from Assignment 1 on test instances
+% Include: mean objective, std dev, runtime
+
+\subsection{Best Algorithm from Assignment 2}
+% TODO: Present results of the better tuned algorithm from this assignment
+% Justify the choice if results were inconclusive
+
+\subsection{Comparison Across Instance Sizes}
+% TODO: Show how algorithms scale with instance size
+% Include tables and figures
+
+\subsection{Solution Quality Over Time}
+% TODO: Include convergence plots showing quality over iterations/time
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=1\linewidth]{convergence_plot.png}
+%     \caption{Solution Quality Over Time}
+%     \label{fig:convergence}
+% \end{figure}
+
+% ============================================================
+% 8. Statistical Comparison (Task 5)
+% ============================================================
+\section{Statistical Comparison}
+
+\subsection{Methodology}
+% TODO: Describe statistical tests used (e.g., Wilcoxon signed-rank test)
+% Reference the Statistical Testing Jupyter notebook
+
+\subsection{Comparison: Best from Assignment 1 vs. Best from Assignment 2}
+% TODO: Present statistical test results
+% Include: p-values, effect sizes, conclusions
+
+\subsection{Variance Analysis}
+% TODO: Include box plots or violin plots showing solution variance
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=1\linewidth]{boxplot_comparison.png}
+%     \caption{Solution Quality Distribution Comparison}
+%     \label{fig:boxplot}
+% \end{figure}
+
+\subsection{Summary of Statistical Findings}
+% TODO: Summarize which algorithm is significantly better (if any)
+
+% ============================================================
+% 9. Conclusion
+% ============================================================
+\section{Conclusion}
+% TODO: Summarize main findings and contributions
+
+\subsection{Key Learnings}
+% TODO: Reflect on experiences from both programming assignments
+% What worked well? What was challenging?
+
+\subsection{Algorithm Design Insights}
+% TODO: Discuss insights about metaheuristic design for SCF-PDP
+
+\subsection{Future Improvements}
+% TODO: What would you do differently or explore further?
+
+% ============================================================
+% Appendices (optional)
+% ============================================================
+% \appendix
+% \section{Additional Plots}
+% \section{Parameter Tables}
+% \section{Code Snippets}
+
+% ============================================================
+% Bibliography (optional)
+% ============================================================
+% \bibliographystyle{plain}
+% \begin{thebibliography}{9}
+% \bibitem{}
+% \textit{},
+% \url{}
+% \end{thebibliography}
+
+\end{document}
