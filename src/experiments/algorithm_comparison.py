@@ -17,6 +17,7 @@ from dataclasses import dataclass
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from tqdm import tqdm
+from scipy.stats import wilcoxon
 
 from src.instance import SCFPDPInstance
 from src.solution import SCFPDPSolution
@@ -28,14 +29,12 @@ from src.experiments.construction_heuristics import InstanceType
 from src.utils import find_project_root
 
 
-# ==================== Data Structures ====================
-
 @dataclass
 class AlgorithmConfig:
     """Configuration for a single algorithm to test."""
     name: str  # e.g., "Greedy", "Randomized-k10"
-    algorithm_class: type  # The heuristic class
-    init_kwargs: dict  # kwargs for __init__
+    algorithm_class: type
+    init_kwargs: dict
 
 
 @dataclass
@@ -66,6 +65,12 @@ class ComparisonResults:
     algorithm2_wins: int
     ties: int
     n_instances: int
+    # Statistical test results
+    wilcoxon_statistic: float | None = None
+    wilcoxon_p_value: float | None = None
+    is_significant: bool = False  # p < 0.05
+    # Raw percentage differences for boxplot
+    percent_diffs_array: np.ndarray | None = None
 
 
 @dataclass
@@ -77,8 +82,6 @@ class ExperimentSummary:
     total_ties: int
     total_instances: int
 
-
-# ==================== Core Functions ====================
 
 def run_algorithm_on_instance(
     instance: SCFPDPInstance,
@@ -97,7 +100,7 @@ def run_algorithm_on_instance(
     start_time = time.time()
 
     # Load instance
-    solution = SCFPDPSolution(instance)
+    solution = SCFPDPSolution(instance, use_delta_eval=True)
     parsing_time = time.time() - start_time
 
     # Run construction heuristic
@@ -200,7 +203,27 @@ def compare_on_single_size(
     alg2_wins = int(np.sum(alg2_objs < alg1_objs))
     ties = int(np.sum(alg1_objs == alg2_objs))
 
-    print(f"  {algorithm1_config.name} wins: {alg1_wins}, {algorithm2_config.name} wins: {alg2_wins}, Ties: {ties}")
+    # Perform Wilcoxon signed-rank test (non-parametric paired test)
+    # Test on raw objective differences (not percentage) for statistical validity
+    wilcoxon_stat = None
+    wilcoxon_p = None
+    is_significant = False
+    try:
+        # Wilcoxon requires non-zero differences
+        diffs = alg1_objs - alg2_objs
+        if not np.all(diffs == 0):
+            stat, p_value = wilcoxon(alg1_objs, alg2_objs, alternative='two-sided')
+            wilcoxon_stat = float(stat)
+            wilcoxon_p = float(p_value)
+            is_significant = p_value < 0.05
+    except ValueError as e:
+        # Wilcoxon can fail with too few samples or all-zero differences
+        print(f"Wilcoxon failed: {e}")
+        pass
+
+    sig_marker = "*" if is_significant else ""
+    p_str = f"p={wilcoxon_p:.4f}{sig_marker}" if wilcoxon_p is not None else "p=N/A"
+    print(f"  {algorithm1_config.name} wins: {alg1_wins}, {algorithm2_config.name} wins: {alg2_wins}, Ties: {ties} | {p_str}")
 
     return ComparisonResults(
         instance_size=instance_size,
@@ -215,7 +238,11 @@ def compare_on_single_size(
         algorithm1_wins=alg1_wins,
         algorithm2_wins=alg2_wins,
         ties=ties,
-        n_instances=len(instance_files)
+        n_instances=len(instance_files),
+        wilcoxon_statistic=wilcoxon_stat,
+        wilcoxon_p_value=wilcoxon_p,
+        is_significant=is_significant,
+        percent_diffs_array=percent_diffs,
     )
 
 
@@ -284,12 +311,19 @@ def print_comparison_table(summary: ExperimentSummary) -> None:
     # Build table data
     data = []
     for comp in summary.comparison_results:
+        # Format p-value with significance marker
+        if comp.wilcoxon_p_value is not None:
+            p_str = f"{comp.wilcoxon_p_value:.4f}"
+        else:
+            p_str = "N/A"
+
         row = {
             'Size': comp.instance_size,
             f'{comp.algorithm1_name} Obj': f"{comp.algorithm1_mean_obj:.1f} ± {comp.algorithm1_std_obj:.1f}",
             f'{comp.algorithm2_name} Obj': f"{comp.algorithm2_mean_obj:.1f} ± {comp.algorithm2_std_obj:.1f}",
             '% Diff': f"{comp.mean_percent_diff:+.2f} ± {comp.std_percent_diff:.2f}",
-            'Wins (G/R/T)': f"{comp.algorithm1_wins}/{comp.algorithm2_wins}/{comp.ties}"
+            'Wins (1/2/T)': f"{comp.algorithm1_wins}/{comp.algorithm2_wins}/{comp.ties}",
+            'p-value': p_str,
         }
         data.append(row)
 
@@ -306,14 +340,15 @@ def print_comparison_table(summary: ExperimentSummary) -> None:
         f'{summary.comparison_results[0].algorithm1_name} Obj': f'{alg1_sum_obj:.1f}',
         f'{summary.comparison_results[0].algorithm2_name} Obj': f'{alg2_sum_obj:.1f}',
         '% Diff': '',
-        'Wins (G/R/T)': f"{summary.algorithm1_total_wins}/{summary.algorithm2_total_wins}/{summary.total_ties}"
+        'Wins (1/2/T)': f"{summary.algorithm1_total_wins}/{summary.algorithm2_total_wins}/{summary.total_ties}",
+        'p-value': '',
     }
     df = pd.concat([df, pd.DataFrame([total_row])], ignore_index=True)
 
     # Print table
-    print("\n" + "="*80)
+    print("\n" + "="*100)
     print(df.to_string(index=False))
-    print("="*80)
+    print("="*100)
 
     # Print legend
     print("\nLegend:")
@@ -321,13 +356,14 @@ def print_comparison_table(summary: ExperimentSummary) -> None:
     print(f"  - % Diff: ({summary.comparison_results[0].algorithm1_name} - {summary.comparison_results[0].algorithm2_name}) / {summary.comparison_results[0].algorithm1_name} * 100")
     print(f"    For minimization: (negative = {summary.comparison_results[0].algorithm1_name} better, positive = {summary.comparison_results[0].algorithm2_name} better)")
     print(f"  - Wins: ({summary.comparison_results[0].algorithm1_name} wins / {summary.comparison_results[0].algorithm2_name} wins / Ties)")
+    print(f"  - p-value: Wilcoxon signed-rank test (p<0.05)")
     print(f"  - Total instances tested: {summary.total_instances}")
-    print("="*80 + "\n")
+    print("="*100 + "\n")
 
 
 def plot_comparison_results(summary: ExperimentSummary, save_plot: bool = False) -> None:
     """
-    Plot comparison results showing percentage differences and win counts.
+    Plot comparison results showing percentage differences, win counts, and boxplots.
 
     Args:
         summary: ExperimentSummary containing all comparison results
@@ -339,7 +375,7 @@ def plot_comparison_results(summary: ExperimentSummary, save_plot: bool = False)
 
     # Extract data
     instance_sizes = [comp.instance_size for comp in summary.comparison_results]
-    percent_diffs = [comp.mean_percent_diff for comp in summary.comparison_results]
+    percent_diffs_means = [comp.mean_percent_diff for comp in summary.comparison_results]
     alg1_wins = [comp.algorithm1_wins for comp in summary.comparison_results]
     alg2_wins = [comp.algorithm2_wins for comp in summary.comparison_results]
     ties = [comp.ties for comp in summary.comparison_results]
@@ -351,40 +387,59 @@ def plot_comparison_results(summary: ExperimentSummary, save_plot: bool = False)
     alg1_sum_obj = sum(comp.algorithm1_mean_obj * comp.n_instances for comp in summary.comparison_results)
     alg2_sum_obj = sum(comp.algorithm2_mean_obj * comp.n_instances for comp in summary.comparison_results)
 
-    # Create figure with 2 subplots side by side
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    # Create figure with 2 subplots
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
     fig.suptitle(f'Algorithm Comparison: {alg1_name} vs {alg2_name}', fontsize=14, fontweight='bold')
 
-    # Plot 1: Percentage Difference (Bar Plot)
-    # Create bar colors based on sign of percentage difference
-    # For minimization: negative % diff = alg1 better (blue), positive % diff = alg2 better (green)
-    bar_colors = ['green' if diff > 0 else 'blue' for diff in percent_diffs]
+    # Plot 1: Boxplot of Percentage Differences
+    # Collect percentage differences arrays for boxplot
+    percent_diffs_arrays = []
+    for comp in summary.comparison_results:
+        if comp.percent_diffs_array is not None:
+            percent_diffs_arrays.append(comp.percent_diffs_array)
+        else:
+            percent_diffs_arrays.append(np.array([comp.mean_percent_diff]))
 
-    # Calculate bar width for log scale
-    x_positions = np.arange(len(instance_sizes))
-    ax1.bar(x_positions, percent_diffs, color=bar_colors, alpha=0.7, width=0.6)
-    ax1.axhline(y=0, color='black', linestyle='--', linewidth=1, alpha=0.5)
+    bp = ax1.boxplot(percent_diffs_arrays, labels=instance_sizes, patch_artist=True)
+
+    # Color boxes based on which algorithm wins more (aligned with win bar colors)
+    for i, (box, comp) in enumerate(zip(bp['boxes'], summary.comparison_results)):
+        if comp.algorithm1_wins > comp.algorithm2_wins:
+            box.set_facecolor('lightblue')
+        elif comp.algorithm2_wins > comp.algorithm1_wins:
+            box.set_facecolor('lightgreen')
+        else:
+            box.set_facecolor('lightgray')
+        box.set_alpha(0.7)
+
+    ax1.axhline(y=0, color='red', linestyle='--', linewidth=1.5, alpha=0.7, label='No difference')
     ax1.set_xlabel('Instance Size (n)', fontsize=12)
     ax1.set_ylabel('% Difference', fontsize=12)
-    ax1.set_title(f'Percentage Difference\n(obj({alg1_name}) - obj({alg2_name})) / obj({alg1_name}) * 100', fontsize=12, fontweight='bold')
-    ax1.set_xticks(x_positions)
-    ax1.set_xticklabels(instance_sizes)
+    ax1.set_title('Distribution of % Differences in Avg Objective Value', fontsize=12, fontweight='bold')
     ax1.grid(True, alpha=0.3, axis='y')
 
-    # Add legend to first subplot
+    # Auto-scale y-axis to wrap around data with padding
+    all_values = np.concatenate(percent_diffs_arrays)
+    y_min, y_max = np.min(all_values), np.max(all_values)
+    y_range = y_max - y_min
+    padding = y_range * 0.15 if y_range > 0 else 1
+    ax1.set_ylim(y_min - padding, y_max + padding)
+
+    # Add legend for boxplot colors
     legend_elements = [
-        Patch(facecolor='blue', alpha=0.7, label=f'{alg1_name} won'),
-        Patch(facecolor='green', alpha=0.7, label=f'{alg2_name} won')
+        Patch(facecolor='lightblue', alpha=0.7, label=f'{alg1_name} stronger'),
+        Patch(facecolor='lightgreen', alpha=0.7, label=f'{alg2_name} stronger'),
+        Patch(facecolor='lightgray', alpha=0.7, label='Tied')
     ]
-    ax1.legend(handles=legend_elements, loc='best')
+    ax1.legend(handles=legend_elements, loc='best', fontsize=9)
 
     # Plot 2: Win Distribution
     x = np.arange(len(instance_sizes))
     width = 0.25
 
-    ax2.bar(x - width, alg1_wins, width, label=f'{alg1_name} won', color='blue', alpha=0.7)
-    ax2.bar(x, alg2_wins, width, label=f'{alg2_name} won', color='green', alpha=0.7)
-    ax2.bar(x + width, ties, width, label='Ties', color='gray', alpha=0.7)
+    ax2.bar(x - width, alg1_wins, width, label=f'{alg1_name} wins', color='lightblue', alpha=0.8)
+    ax2.bar(x, alg2_wins, width, label=f'{alg2_name} wins', color='lightgreen', alpha=0.8)
+    ax2.bar(x + width, ties, width, label='Ties', color='lightgray', alpha=0.8)
 
     ax2.set_xlabel('Instance Size (n)', fontsize=12)
     ax2.set_ylabel('Number of Wins', fontsize=12)
@@ -394,31 +449,38 @@ def plot_comparison_results(summary: ExperimentSummary, save_plot: bool = False)
     ax2.legend()
     ax2.grid(True, alpha=0.3, axis='y')
 
-    # Add summary statistics text box
-    # Calculate percentage difference between total objectives
-    # For minimization: positive % diff means alg1 is worse (higher objective)
+    # Enhanced summary statistics text box with p-values per size
     total_obj_percent_diff = (alg1_sum_obj - alg2_sum_obj) / alg1_sum_obj * 100
 
     if total_obj_percent_diff > 0:
-        # alg1 has higher (worse) objective for minimization
-        comparison_text = f"{alg2_name}'s total objective is better than {alg1_name}'s by {total_obj_percent_diff:.4f}%"
+        comparison_text = f"{alg2_name}'s total objective is better than {alg1_name}'s by {total_obj_percent_diff:.4f}% on average"
     elif total_obj_percent_diff < 0:
-        # alg1 has lower (better) objective for minimization
-        comparison_text = f"{alg1_name}'s total objective is better than {alg2_name}'s by {abs(total_obj_percent_diff):.4f}%"
+        comparison_text = f"{alg1_name}'s total objective is better than {alg2_name}'s by {abs(total_obj_percent_diff):.4f}% on average"
     else:
         comparison_text = f"{alg1_name}'s and {alg2_name}'s total objectives are equal"
 
-    summary_text = (
-        f'Summary Statistics:\n'
-        f'Total instances used: {summary.total_instances}\n'
-        f'Total Wins: {alg1_name}={summary.algorithm1_total_wins}, '
-        f'{alg2_name}={summary.algorithm2_total_wins}, Ties={summary.total_ties}\n'
-        f'{comparison_text}'
-    )
-    fig.text(0.5, 0.02, summary_text, ha='center', fontsize=10,
-             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    # Build p-value string per size
+    p_value_lines = []
+    for comp in summary.comparison_results:
+        if comp.wilcoxon_p_value is not None:
+            p_str = f"{comp.wilcoxon_p_value:.6f}" if comp.wilcoxon_p_value >= 0.0001 else f"{comp.wilcoxon_p_value:.2e}"
+        else:
+            p_str = "N/A"
+        p_value_lines.append(f"n={comp.instance_size}: p={p_str}")
 
-    plt.tight_layout(rect=(0, 0.08, 1, 1))  # Leave space for text box at bottom
+    p_values_by_size = " | ".join(p_value_lines)
+
+    summary_text = (
+        f'OVERALL: {summary.total_instances} instances | '
+        f'Total Wins: {alg1_name}={summary.algorithm1_total_wins}, {alg2_name}={summary.algorithm2_total_wins}, Ties={summary.total_ties} \n'
+        f'{comparison_text}\n'
+        f'P-VALUES (Wilcoxon): {p_values_by_size}'
+    )
+    fig.text(0.5, 0.01, summary_text, ha='center', fontsize=9,
+             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.6),
+             verticalalignment='bottom', multialignment='left')
+
+    plt.tight_layout(rect=(0, 0.10, 1, 1))
 
     if save_plot:
         project_root = find_project_root()
@@ -429,12 +491,10 @@ def plot_comparison_results(summary: ExperimentSummary, save_plot: bool = False)
         filename = plots_dir / f"{alg1_name}_vs_{alg2_name}_{'-'.join(instance_sizes)}_{timestamp}.png"
         plt.savefig(filename, dpi=300, bbox_inches='tight')
         print(f"Plot saved as '{filename}'")
-        plt.close()  # Close figure without showing
+        plt.close()
     else:
-        plt.show()  # Only show interactively when not saving
+        plt.show()
 
-
-# ==================== Convenience Functions ====================
 
 def compare_greedy_vs_randomized(
     instance_sizes: list[str],
@@ -478,8 +538,6 @@ def compare_greedy_vs_randomized(
         algorithm2_config=algorithm2_config,
     )
 
-
-# ==================== Metaheuristic Algorithm Wrappers ====================
 
 class BeamSearchWrapper:
     """Wrapper to make Beam Search compatible with comparison framework."""

@@ -56,7 +56,6 @@ class SCFPDPInstance:
         self._parse_file(file_name)
         self._compute_distances()
 
-    @profile
     def _parse_file(self, file_name: str):
         """
         File format:
@@ -115,7 +114,6 @@ class SCFPDPInstance:
             ]
         )
 
-    @profile
     def _compute_distances(self):
         """Compute the distance matrix for all locations using vectorized operations.
 

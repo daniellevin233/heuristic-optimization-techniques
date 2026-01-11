@@ -1,6 +1,5 @@
 \documentclass[a4paper]{scrartcl}
 
-% --- Packages ---
 \usepackage[a4paper, left=1.8cm, right=1.8cm, top=2.5cm, bottom=2cm]{geometry}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
@@ -44,39 +43,93 @@
 \begin{document}
 \maketitle
 
-% ============================================================
-% 1. Introduction / Overview
-% ============================================================
-\section{Introduction}
-This report presents our work on Assignment 2 of the SCF-PDP programming exercise. Building upon the algorithms developed in Assignment 1 (construction heuristics, local search, VND, GRASP, and Simulated Annealing), we implement two advanced metaheuristics, investigate alternative fairness measures, perform automated parameter tuning, and conduct statistical comparisons.
+\section{General Setup and New Tools}
 
-% ============================================================
-% 2. General Setup (reuse/extend from Assignment 1)
-% ============================================================
-\section{General Setup}
+The implementation continues in Python 3.13, building upon the framework established in Assignment 1. The following libraries were added for the second assignment:
 
-\subsection{Implementation Environment}
-% TODO: Update if any changes from Assignment 1
-The implementation continues in Python 3.13 with the following libraries:
 \begin{itemize}
-  \item \texttt{numpy} -- efficient array operations and numerical computations
-  \item \texttt{scipy} -- distance matrix computation and statistical functions
-  \item \texttt{pymhlib} -- metaheuristic framework
-  \item \texttt{pandas} -- result aggregation
-  \item \texttt{matplotlib} -- visualization
-  % TODO: Add any new libraries used
+  \item \texttt{sklearn.cluster.KMeans} -- K-means clustering algorithm for spatial location clustering in enhanced construction heuristics
+  \item \texttt{scipy.stats.wilcoxon} -- Wilcoxon signed-rank test for statistical comparison of paired algorithm results
 \end{itemize}
 
-\subsection{Extensions from Assignment 1}
-% TODO: Describe any changes to core classes (SCFPDPInstance, SCFPDPSolution, Route)
-% TODO: Describe new data structures or utilities added
+\section{Extensions from Assignment 1}
+The results of the algorithms implemented in Assignment 1 were quite poor and the
+most likely reason for that was the simplicity of the greedy construction which served as
+the baseline for all other approaches evaluated in Assignment 1.\ To recall, the original greedy construction
+always inserted pickup and dropoff locations together based on the proximity of the unserved pickups.
+Therefore, before starting to work on this assignment I was motivated to try and improve the greedy construction heuristic.
 
-% ============================================================
-% 3. Advanced Metaheuristic 1
-% ============================================================
-\section{Advanced Metaheuristic 1: [Algorithm Name]}
+\subsection{Idea}
+I have tried out two enhancements to the greedy construction as well as a hybrid approach combining both enhancements:
+\begin{itemize}
+    \item \textbf{Flexible Pickup and Dropoff:} Instead of always inserting pickup and dropoff locations together, I have implemented a more flexible approach which evaluates all valid pickup positions and, for each pickup position, all valid dropoff positions. It selects the request with minimum total insertion cost across all position combinations, respecting capacity constraints. This approach is more time consuming so I have to implement multiple optimization such as maintaining a list of carried capacities at every step in the route and optimized based on that capacity constraint validation.
+
+    \item \textbf{Cluster Requests:} Uses K-means clustering on request centroids (midpoint of pickup-dropoff pairs) to pre-distribute requests to vehicles. Each vehicle serves only requests from its assigned cluster.
+
+    \item \textbf{Hybrid:} Combines clustering with flexible dropoff placement within each cluster.
+\end{itemize}
+
+\subsection{Results}
+\subsubsection{Greedy vs Flexible Pickup \& Dropoff}
+Figure~\ref{fig:greedy_vs_flex} compares the baseline greedy construction with the flexible pickup and dropoff approach
+across 30 trains instances of each of the sizes 50, 100, 200, 500, and 1000.
+As can be seen, the flexible approach consistently outperforms the baseline greedy construction with total average
+improvement of $~56\%$.
+This is not surprising because the flexible approach explores a much larger solution space by considering all
+valid insertion positions for both pickup and dropoff locations.
+The computational overhead is manageable due to optimizations in capacity constraint checking.
+Solving 30 instances of size 1000 on 8 processors in parallel takes approximately 10 minutes.\\
+The gap in result improvement grows slightly with instance size, which can be explained by the increasing number of possible insertion positions.
+Overall, this enhancement significantly boosts solution quality compared to the original greedy construction.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{Greedy_vs_FlexPickupDropoff_50-100-200-500-1000_20260111_134554}
+    \caption{Greedy vs Flexible Pickup \& Dropoff}
+    \label{fig:greedy_vs_flex}
+\end{figure}
+
+\subsubsection{Greedy vs Clustered}
+Figure~\ref{fig:greedy_vs_clustered} compares the baseline greedy construction with the cluster-based approach across
+instance sizes 50, 100, 200, 500, and 1000.
+The clustered construction turned out to be less effective than the flexible pickup and dropoff approach,
+although still outperforming the original greedy approach by $~12\%$ on average.
+The main advantage of clustering is that it reduces the solution space by limiting each vehicle to a subset of requests,
+that are located close to each other.
+That means that the clustered approach can also improve performance in larger instances due to divided search space.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{Greedy_vs_Clustered_50-100-200-500-1000_20260111_134613}
+    \caption{Greedy vs Clustered}
+    \label{fig:greedy_vs_clustered}
+\end{figure}
+
+\subsubsection{Clustered vs Flexible Pickup \& Dropoff}
+Figure~\ref{fig:clustered_vs_flex} compares the cluster-based approach with the flexible pickup and dropoff approach
+across instance sizes 50, 100, 200, 500, and 1000.
+As expected from the previous results, the flexible pickup and dropoff approach significantly outperforms
+the clustered approach by $~49\%$ on average.
+This mainly stems from the fact that the insertion logic used in the clustered approach is the same
+as in the original greedy construction, which is much more limited in solution exploration.
+However, these approaches are not mutually exclusive, so if combined we could expect even better results
+as shown in the next section.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{Clustered_vs_FlexPickupDropoff_50-100-200-500-1000_20260111_140023}
+    \caption{Clustered vs Flexible Pickup \& Dropoff}
+    \label{fig:clustered_vs_flex}
+\end{figure}
+
+\subsubsection{Hybrid vs Flexible Pickup \& Dropoff}
+
+
+
+\section{Metaheuristic 1: Population-Based Simulated Annealing}
 % Choose from: Evolutionary/Genetic Algorithm, Ant Colony Optimization,
 % (Adaptive) Large Neighborhood Search, or Hybrid Algorithm
+% Compare to the SA from Assignment 1
 
 \subsection{Idea}
 % TODO: Describe the main concept and motivation for choosing this algorithm
@@ -104,10 +157,7 @@ The implementation continues in Python 3.13 with the following libraries:
 % \end{tabular}
 % \end{table}
 
-% ============================================================
-% 4. Advanced Metaheuristic 2
-% ============================================================
-\section{Advanced Metaheuristic 2: [Algorithm Name]}
+\section{Metaheuristic 2: ALNS}
 % Choose a different algorithm from the list above
 
 \subsection{Idea}
@@ -122,22 +172,16 @@ The implementation continues in Python 3.13 with the following libraries:
 \subsection{Parameters}
 % TODO: List all parameters with initial/default values
 
-% ============================================================
-% 5. Fairness Measure Investigation (Task 2)
-% ============================================================
 \section{Fairness Measure Investigation}
 
-\subsection{Alternative Fairness Measures}
-We investigate two alternative fairness measures in addition to the Jain fairness index:
-
-\subsubsection{Max-Min Fairness}
+\subsection{Max-Min Fairness}
 The max-min fairness measure is defined as:
 \[
 M = \frac{\min_{k \in K} d(R_k)}{\max_{k \in K} d(R_k)}
 \]
 % TODO: Describe interpretation and properties
 
-\subsubsection{Gini Coefficient (Inverted)}
+\subsection{Gini Coefficient (Inverted)}
 The inverted Gini coefficient is defined as:
 \[
 G = 1 - \frac{\sum_{k' \in K} \sum_{k'' \in K} |d(R_{k'}) - d(R_{k''})| }{2 n_K \sum_{k' \in K} d(R_{k'})}
@@ -155,9 +199,6 @@ G = 1 - \frac{\sum_{k' \in K} \sum_{k'' \in K} |d(R_{k'}) - d(R_{k''})| }{2 n_K 
 \subsection{Analysis}
 % TODO: Discuss findings and insights about fairness measure impact
 
-% ============================================================
-% 6. Automated Parameter Tuning (Task 3)
-% ============================================================
 \section{Automated Parameter Tuning}
 
 \subsection{Tuning Methodology}
@@ -182,9 +223,6 @@ G = 1 - \frac{\sum_{k' \in K} \sum_{k'' \in K} |d(R_{k'}) - d(R_{k''})| }{2 n_K 
 \subsection{Instance Size Scalability}
 % TODO: Report which instance sizes can be solved in reasonable time
 
-% ============================================================
-% 7. Experimental Results on Test Instances (Task 4)
-% ============================================================
 \section{Experimental Results}
 ABCD
 

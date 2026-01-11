@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 import random
 
 import numpy as np
+from line_profiler import profile
+from sklearn.cluster import KMeans
 
 from src.instance import SCFPDPInstance
 from src.solution import SCFPDPSolution, Route
@@ -41,10 +43,22 @@ class ConstructionHeuristic(ABC):
         closest_request = np.argmin(relevant_pickup_locations)
         return int(closest_request)
 
-    @staticmethod
-    def select_dropoff_distance(route: Route) -> int:
+    def select_dropoff_distance(self, route: Route, request_id: int = None, pickup_position: int = None) -> int:
         """By default drop off directly after pickup"""
         return 1
+
+    def select_next_request_and_position(self, route: Route, excluded_requests: set[int]) -> tuple[int, int] | None:
+        """
+        Select the next request and its pickup insertion position.
+
+        Returns: (request_id, pickup_position) or None if no feasible request exists.
+        Can be overridden by subclasses to jointly optimize request and position selection.
+        """
+        insertion_position = self.select_insertion_position(route)
+        request_id = self._select_next_request(route, excluded_requests, insertion_position)
+        if request_id is None:
+            return None
+        return (request_id, insertion_position)
 
     def construct(self) -> None:
         served_requests: set[int] = set()
@@ -55,14 +69,14 @@ class ConstructionHeuristic(ABC):
                 if current_route in full_routes:
                     continue
 
-                next_insert_at = self.select_insertion_position(current_route)
-                next_request = self._select_next_request(current_route, served_requests, next_insert_at)
+                result = self.select_next_request_and_position(current_route, served_requests)
                 # If there is no feasible next request for this route, move on to the next route.
-                if next_request is None:
+                if result is None:
                     full_routes.append(current_route)
                     continue
 
-                dropoff_distance = self.select_dropoff_distance(current_route)
+                next_request, next_insert_at = result
+                dropoff_distance = self.select_dropoff_distance(current_route, next_request, next_insert_at)
 
                 # In this greedy construction - append pickup and dropoff together as the last two stops before depot
                 current_route.serve_request(next_request, next_insert_at, dropoff_distance)
@@ -130,6 +144,146 @@ class RandomizedConstructionHeuristic(GreedyConstructionHeuristic):
         """Select request using RCL of length 10 to insert at the insertion location."""
         rcl = self.get_rcl_of_next_requests(route, excluded_requests, insertion_location_idx)
         return random.choice(rcl)
+
+
+class FlexiblePickupAndDropoffConstructionHeuristic(GreedyConstructionHeuristic):
+    """
+    Enhanced greedy construction that finds optimal pickup AND dropoff positions.
+
+    For each candidate request, evaluates ALL valid pickup positions in the route,
+    and for each pickup position, evaluates ALL valid dropoff positions.
+    Selects the request with minimum total insertion cost.
+    """
+
+    @profile
+    def _find_best_insertion_cost(self, route: Route, request_id: int) -> tuple[int, int, int] | None:
+        """
+        Find the best pickup and dropoff positions for a request.
+
+        Returns: (total_cost, best_pickup_pos, best_dropoff_dist) or None if infeasible.
+        """
+        best_cost = float('inf')
+        best_pickup_pos = None
+        best_dropoff_dist = None
+
+        # Try all pickup positions (0 to len(route) inclusive)
+        for pickup_pos in range(len(route) + 1):
+            # Try all valid dropoff positions (after pickup)
+            for dropoff_dist in range(1, len(route) - pickup_pos + 2):
+                dropoff_pos = pickup_pos + dropoff_dist
+
+                # Check capacity feasibility for this pickup-dropoff combination
+                if not route.can_take_request(request_id, pickup_pos, dropoff_pos):
+                    continue
+
+                # Calculate delta in the cost when serving the request in suggested positions
+                total_cost = route.calculate_request_serving_delta(request_id, pickup_pos, dropoff_pos)
+
+                if total_cost < best_cost:
+                    best_cost = total_cost
+                    best_pickup_pos = pickup_pos
+                    best_dropoff_dist = dropoff_dist
+
+        if best_pickup_pos is None:
+            return None
+        return (best_cost, best_pickup_pos, best_dropoff_dist)
+
+    def select_next_request_and_position(self, route: Route, excluded_requests: set[int]) -> tuple[int, int] | None:
+        """
+        Select request with minimum total insertion cost across all positions.
+
+        Also stores the best dropoff distance for use in select_dropoff_distance().
+        """
+        best_request = None
+        best_total_cost = float('inf')
+        best_pickup_pos = None
+        best_dropoff_dist = None
+
+        for request_id in range(self.instance.n):
+            if request_id in excluded_requests:
+                continue
+
+            result = self._find_best_insertion_cost(route, request_id)
+            if result is None:
+                continue
+
+            cost, pickup_pos, dropoff_dist = result
+            if cost < best_total_cost:
+                best_total_cost = cost
+                best_request = request_id
+                best_pickup_pos = pickup_pos
+                best_dropoff_dist = dropoff_dist
+
+        if best_request is None:
+            return None
+
+        # Store for select_dropoff_distance to use
+        self._cached_dropoff_distance = best_dropoff_dist
+        return (best_request, best_pickup_pos)
+
+    def select_dropoff_distance(self, route: Route, request_id: int = None, pickup_position: int = None) -> int:
+        """Return the cached best dropoff distance computed during request selection."""
+        return getattr(self, '_cached_dropoff_distance', 1)
+
+
+class ClusterBasedConstructionHeuristic(GreedyConstructionHeuristic):
+    """
+    Cluster-based construction that pre-assigns requests to vehicles.
+
+    Uses KMeans clustering on request centroids (midpoint of pickup-dropoff)
+    to group geographically close requests. Each cluster is assigned to a vehicle,
+    and requests are served within their assigned cluster.
+    """
+
+    def __init__(self, initial_solution: SCFPDPSolution):
+        super().__init__(initial_solution)
+        self.vehicle_requests: dict[int, set[int]] = {}  # vehicle_idx -> set of request_ids
+        self._compute_clusters()
+
+    def _compute_request_centroids(self) -> np.ndarray:
+        """Compute centroid (midpoint) for each request."""
+        centroids = []
+        for request_id in range(self.instance.n):
+            pickup_loc = self.instance.pickup_locations[request_id]
+            dropoff_loc = self.instance.dropoff_locations[request_id]
+            centroid_x = (pickup_loc.x + dropoff_loc.x) / 2
+            centroid_y = (pickup_loc.y + dropoff_loc.y) / 2
+            centroids.append([centroid_x, centroid_y])
+        return np.array(centroids)
+
+    def _compute_clusters(self) -> None:
+        """Cluster requests and assign to vehicles."""
+        n_vehicles = self.instance.n_K
+        centroids = self._compute_request_centroids()
+
+        # Initialize empty sets for each vehicle
+        for vehicle_idx in range(n_vehicles):
+            self.vehicle_requests[vehicle_idx] = set()
+
+        # Use KMeans to cluster requests
+        kmeans = KMeans(n_clusters=n_vehicles, random_state=42, n_init=10)
+        cluster_labels = kmeans.fit_predict(centroids)
+
+        # Assign each request to its cluster (vehicle)
+        for request_id, cluster_id in enumerate(cluster_labels):
+            self.vehicle_requests[cluster_id].add(request_id)
+
+    def _select_next_request(self, route: Route, excluded_requests: set[int], insertion_position: int) -> int | None:
+        """
+        Select the closest fitting request that belongs to this vehicle's cluster.
+        """
+        vehicle_idx = self.solution.routes.index(route)
+
+        # Get requests assigned to this vehicle that haven't been served
+        cluster_requests = self.vehicle_requests[vehicle_idx] - excluded_requests
+
+        if not cluster_requests:
+            # If no requests left in cluster, treat the route of this vehicle as finalized
+            return None
+
+        # Find closest fitting request within the cluster
+        excluded_non_cluster = excluded_requests | (set(range(self.instance.n)) - cluster_requests)
+        return self._find_closest_fitting_pickup_location(route, excluded_non_cluster, insertion_position)
 
 
 if __name__ == '__main__':

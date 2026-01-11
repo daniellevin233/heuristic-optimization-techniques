@@ -1,5 +1,9 @@
+from src.algorithms.construction_heuristics import (
+    FlexiblePickupAndDropoffConstructionHeuristic,
+)
 from src.experiments.construction_heuristics import run_randomized_construction_experiments_multi_size, InstanceType
 from src.instance import SCFPDPInstance
+from src.solution import SCFPDPSolution
 from src.utils import find_project_root
 
 
@@ -37,6 +41,41 @@ def profile_randomized_construction():
         save_plot=False
     )
 
+def profile_flexible_construction():
+    """Profile the FlexiblePickupAndDropoffConstructionHeuristic for different instance sizes."""
+    project_root = find_project_root()
+
+    # Test different instance sizes
+    instance_sizes = ["50", "100"]
+
+    for size in instance_sizes:
+        print(f"\n{'='*60}")
+        print(f"Profiling FlexiblePickupAndDropoff on instance size: {size}")
+        print('='*60)
+
+        instance_dir = project_root / "instances" / size / "train"
+        instance_files = sorted(instance_dir.glob("*.txt"))
+
+        if instance_files:
+            # Profile just the first instance of each size
+            instance_file = instance_files[0]
+            print(f"Loading: {instance_file.name}")
+
+            instance = SCFPDPInstance(str(instance_file))
+            print(f"Loaded instance with n={instance.n}, gamma={instance.gamma}")
+
+            # Create solution and run FlexiblePickupAndDropoff construction
+            initial_solution = SCFPDPSolution(inst=instance, use_delta_eval=True)
+            heuristic = FlexiblePickupAndDropoffConstructionHeuristic(initial_solution)
+
+            print("Running FlexiblePickupAndDropoff construction...")
+            heuristic.construct()
+
+            print(f"Objective: {initial_solution.calc_objective():.2f}")
+            print(f"Solution valid: {initial_solution.check() is None}")
+
+
 if __name__ == "__main__":
     # profile_instance_loading()
-    profile_randomized_construction()
+    # profile_randomized_construction()
+    profile_flexible_construction()

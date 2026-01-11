@@ -4,3 +4,4 @@ pymhlib
 line_profiler
 scipy
 tqdm
+scikit-learn

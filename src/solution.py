@@ -2,6 +2,7 @@ import copy
 from pathlib import Path
 from typing import Any, Callable
 
+from line_profiler import profile
 from pymhlib.solution import Solution
 
 from src.instance import SCFPDPInstance
@@ -15,6 +16,7 @@ class Route:
         self.route: list[int] = []
         self.distance: int = 0
         self.served_requests: list[int] = []
+        self._capacities: list[int] = [0]  # capacity at each position (len = len(route) + 1)
 
     def __repr__(self):
         return f"Served requests: {{{', '.join(str(i) for i in self.served_requests)}}} along the route: {["depot"] + self.route + ["depot"]} (distance={self.distance:.2f}; capacity={self.get_carried_capacity()}/{self.instance.C})"
@@ -22,7 +24,7 @@ class Route:
     def __len__(self) -> int:
         return len(self.route)
 
-    def _get_distance_between(self, loc1: int | None, loc2: int | None) -> int:
+    def get_distance_between(self, loc1: int | None, loc2: int | None) -> int:
         """
         Get distance between two locations. None represents depot.
         loc1 and loc2 are location indices as they appear in self.route.
@@ -57,7 +59,7 @@ class Route:
         self.distance = from_depot_distance + route_distance + to_depot_distance
         self.delta_callback(self.distance, old_distance)
 
-    def _calculate_insertion_delta(self, location_idx: int, at: int) -> int:
+    def calculate_insertion_delta(self, location_idx: int, at: int) -> int:
         """
         Calculate distance delta for inserting location_idx at position at.
         Must be called BEFORE the actual insertion.
@@ -69,13 +71,74 @@ class Route:
         next_loc = None if at >= len(self.route) else self.route[at]
 
         # Old edge: prev -> next
-        old_distance = self._get_distance_between(prev_loc, next_loc)
+        old_distance = self.get_distance_between(prev_loc, next_loc)
 
         # New edges: prev -> location_idx -> next
-        new_distance = (self._get_distance_between(prev_loc, location_idx) +
-                       self._get_distance_between(location_idx, next_loc))
+        new_distance = (self.get_distance_between(prev_loc, location_idx) +
+                        self.get_distance_between(location_idx, next_loc))
 
         return new_distance - old_distance
+
+    def calculate_request_serving_delta(self, request_id: int, pickup_pos: int, dropoff_pos: int) -> int:
+        """
+        Calculate combined distance delta for inserting both pickup and dropoff.
+
+        Args:
+            request_id: The request to insert
+            pickup_pos: Position to insert pickup (0 to len(route))
+            dropoff_pos: Position to insert dropoff AFTER pickup insertion (pickup_pos+1 to len(route)+1)
+
+        Returns the total change in distance for inserting both locations.
+        """
+        pickup_loc = request_id
+        dropoff_loc = request_id + self.instance.n
+
+        # Pickup delta (standard calculation on current route)
+        pickup_prev = None if pickup_pos == 0 else self.route[pickup_pos - 1]
+        pickup_next = None if pickup_pos >= len(self.route) else self.route[pickup_pos]
+
+        pickup_old_edge = self.get_distance_between(pickup_prev, pickup_next)
+        pickup_new_edges = (self.get_distance_between(pickup_prev, pickup_loc) +
+                           self.get_distance_between(pickup_loc, pickup_next))
+        pickup_delta = pickup_new_edges - pickup_old_edge
+
+        # Dropoff delta (accounting for pickup already inserted)
+        # After pickup insertion at pickup_pos:
+        # - Indices < pickup_pos: unchanged
+        # - Index pickup_pos: pickup_loc
+        # - Indices >= pickup_pos in original: shifted by 1
+
+        # Map dropoff_pos (post-pickup) to neighbors
+        if dropoff_pos == pickup_pos + 1:
+            # Dropoff immediately after pickup
+            dropoff_prev = pickup_loc
+            # Next is what was at pickup_pos in original (now at pickup_pos+1)
+            dropoff_next = None if pickup_pos >= len(self.route) else self.route[pickup_pos]
+        else:
+            # dropoff_pos > pickup_pos + 1
+            # Previous is at original index (dropoff_pos - 2) because of the shift
+            original_prev_idx = dropoff_pos - 2
+            if original_prev_idx < pickup_pos:
+                dropoff_prev = self.route[original_prev_idx] if original_prev_idx >= 0 else None
+            elif original_prev_idx == pickup_pos:
+                dropoff_prev = pickup_loc
+            else:
+                dropoff_prev = self.route[original_prev_idx - 1]
+
+            # Next is at original index (dropoff_pos - 1) because of the shift
+            original_next_idx = dropoff_pos - 1
+            if original_next_idx <= pickup_pos:
+                dropoff_next = self.route[original_next_idx] if original_next_idx < len(self.route) else None
+            else:
+                actual_idx = original_next_idx - 1
+                dropoff_next = self.route[actual_idx] if actual_idx < len(self.route) else None
+
+        dropoff_old_edge = self.get_distance_between(dropoff_prev, dropoff_next)
+        dropoff_new_edges = (self.get_distance_between(dropoff_prev, dropoff_loc) +
+                            self.get_distance_between(dropoff_loc, dropoff_next))
+        dropoff_delta = dropoff_new_edges - dropoff_old_edge
+
+        return pickup_delta + dropoff_delta
 
     def _calculate_removal_delta(self, at: int) -> int:
         """
@@ -91,11 +154,11 @@ class Route:
         next_loc = None if at >= len(self.route) - 1 else self.route[at + 1]
 
         # Old edges: prev -> location -> next
-        old_distance = (self._get_distance_between(prev_loc, location_idx) +
-                       self._get_distance_between(location_idx, next_loc))
+        old_distance = (self.get_distance_between(prev_loc, location_idx) +
+                        self.get_distance_between(location_idx, next_loc))
 
         # New edge: prev -> next
-        new_distance = self._get_distance_between(prev_loc, next_loc)
+        new_distance = self.get_distance_between(prev_loc, next_loc)
 
         return new_distance - old_distance
 
@@ -119,19 +182,22 @@ class Route:
         if dropoff_at > len(self.route) + 1:
             raise ValueError(f"Dropoff insertion index is out of range: {dropoff_at}; route length: {len(self.route)}")
 
+        demand = self.instance.demands[request_id]
+
         if self.use_delta_eval:
             # TSP-like delta evaluation: calculate only affected edges
             old_distance = self.distance
-            pickup_delta = self._calculate_insertion_delta(request_id, pickup_at)
+            pickup_delta = self.calculate_insertion_delta(request_id, pickup_at)
 
             # Insert pickup (modifies route)
             self.insert_location(request_id, pickup_at)
 
             # Calculate dropoff delta after pickup insertion
-            dropoff_delta = self._calculate_insertion_delta(request_id + self.instance.n, dropoff_at)
+            dropoff_delta = self.calculate_insertion_delta(request_id + self.instance.n, dropoff_at)
 
             # Insert dropoff
             self.insert_location(request_id + self.instance.n, dropoff_at)
+            self._update_capacities_for_serve(pickup_at, dropoff_at, demand)
             self.check()
 
             # Update distance incrementally
@@ -141,27 +207,87 @@ class Route:
             # Full recalculation
             self.insert_location(request_id, pickup_at)
             self.insert_location(request_id + self.instance.n, dropoff_at)
+            self._update_capacities_for_serve(pickup_at, dropoff_at, demand)
             self.check()
             self.recompute_route_distance()
 
-    def can_take_request(self, request_id: int, at_position: int) -> bool:
-        return self.get_capacity_at_position(at_position) + self.instance.demands[request_id] <= self.instance.C
+    @profile
+    def can_take_request(self, request_id: int, at_position: int, dropoff_position: int | None = None) -> bool:
+        """
+        Check if a request can be feasibly inserted at the given positions.
+
+        Args:
+            request_id: The request to insert
+            at_position: Pickup insertion position
+            dropoff_position: Dropoff insertion position (optional). If provided, checks capacity
+                              at all positions between pickup and dropoff. If None, only checks
+                              at the pickup position
+        """
+        # Cache attribute lookups to avoid repeated access in hot loop
+        demand = self.instance.demands[request_id]
+        max_cap = self.instance.C
+        capacities = self._capacities
+
+        if dropoff_position is None:
+            return capacities[at_position] + demand <= max_cap
+
+        # Check capacity at all positions from pickup to dropoff (inlined for performance)
+        for pos in range(at_position, dropoff_position):
+            if capacities[pos] + demand > max_cap:
+                return False
+        return True
 
     def get_carried_capacity(self) -> int:
-        return self.get_capacity_at_position(len(self.route))
+        return self._capacities[-1] if self._capacities else 0
 
-    def get_capacity_at_position(self, position: int) -> int:
-        """
-        Calculate vehicle capacity at a specific position in the route given what it has picked up so far
-            but has not dropped off yet
-        """
+    @profile
+    def _recompute_capacities(self) -> None:
+        """Recompute the cached capacity array. O(n) operation."""
+        self._capacities = [0]
         capacity = 0
-        for location_idx in self.route[:position]:
+        for location_idx in self.route:
             if location_idx < self.instance.n:  # pickup
                 capacity += self.instance.demands[location_idx]
             else:  # dropoff
                 capacity -= self.instance.demands[location_idx - self.instance.n]
-        return capacity
+            self._capacities.append(capacity)
+
+    def _update_capacities_for_serve(self, pickup_at: int, dropoff_at: int, demand: int) -> None:
+        """
+        Delta update capacities after serving a request.
+        Called AFTER route has been modified (both insertions done).
+        pickup_at and dropoff_at are positions in the NEW route.
+        """
+        # Insert capacity after pickup (old capacity at that position + demand)
+        cap_after_pickup = self._capacities[pickup_at] + demand
+        self._capacities.insert(pickup_at + 1, cap_after_pickup)
+
+        # Add demand to all capacities between pickup and dropoff (they now carry the item)
+        # These are positions pickup_at+2 to dropoff_at in the array (after first insert)
+        for i in range(pickup_at + 2, dropoff_at + 1):
+            self._capacities[i] += demand
+
+        # Insert capacity after dropoff (subtract demand since we dropped off)
+        cap_after_dropoff = self._capacities[dropoff_at] - demand
+        self._capacities.insert(dropoff_at + 1, cap_after_dropoff)
+
+    def _update_capacities_for_remove(self, pickup_pos: int, dropoff_pos: int, demand: int) -> None:
+        """
+        Delta update capacities after removing a request.
+        Called BEFORE route is modified. pickup_pos < dropoff_pos.
+        """
+        # Remove capacity after dropoff first (higher index)
+        self._capacities.pop(dropoff_pos + 1)
+
+        # Subtract demand from positions between pickup and dropoff
+        for i in range(pickup_pos + 1, dropoff_pos):
+            self._capacities[i] -= demand
+
+        # Remove capacity after pickup
+        self._capacities.pop(pickup_pos + 1)
+
+    def get_capacity_at_position(self, position: int) -> int:
+        return self._capacities[position]
 
     def _check_capacity_constraint_at_position(self, position: int) -> int:
         capacity = 0
@@ -206,12 +332,14 @@ class Route:
 
     def swap_locations(self, location_a, location_b) -> None:
         self.route[location_a], self.route[location_b] = self.route[location_b], self.route[location_a]
+        self._recompute_capacities()
         self.check()
         self.recompute_route_distance()
 
     def move_from_to(self, move_from: int, move_to: int) -> None:
         moved_value = self.route.pop(move_from)
         self.route.insert(move_to, moved_value)
+        self._recompute_capacities()
         self.check()
         self.recompute_route_distance()
 
@@ -226,10 +354,14 @@ class Route:
 
         pickup_pos = self.route.index(pickup_idx)
         dropoff_pos = self.route.index(dropoff_idx)
+        demand = self.instance.demands[request_id]
 
         if self.use_delta_eval:
             # TSP-like delta evaluation: calculate only affected edges
             old_distance = self.distance
+
+            # Delta update capacities before route modification
+            self._update_capacities_for_remove(pickup_pos, dropoff_pos, demand)
 
             # Calculate deltas before removal (remove in reverse order)
             # Remove dropoff first (higher index)
@@ -249,6 +381,9 @@ class Route:
             self.distance = old_distance + pickup_delta + dropoff_delta
             self.delta_callback(self.distance, old_distance)
         else:
+            # Delta update capacities before route modification
+            self._update_capacities_for_remove(pickup_pos, dropoff_pos, demand)
+
             # Full recalculation
             for idx in sorted([pickup_pos, dropoff_pos], reverse=True):
                 self.route.pop(idx)
