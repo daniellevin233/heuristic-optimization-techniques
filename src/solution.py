@@ -400,9 +400,10 @@ class SCFPDPSolution(Solution):
 
     to_maximize = False
 
-    def __init__(self, inst: SCFPDPInstance, use_delta_eval: bool = False) -> None:
+    def __init__(self, inst: SCFPDPInstance, use_delta_eval: bool = False, fairness_measure: str = "jain") -> None:
         super().__init__(inst)
         self.use_delta_eval = use_delta_eval
+        self.fairness_measure = fairness_measure  # Options: "jain", "max_min", "gini"
         self.routes: list[Route] = [Route(inst, self.delta_evaluation, use_delta_eval) for _ in range(inst.n_K)]
         self.inst = inst  # this is overridden simply to help compiler with type hinting
 
@@ -451,20 +452,48 @@ class SCFPDPSolution(Solution):
             self._cached_sum_of_squares += (new_distance ** 2 - old_distance ** 2)
 
     def calc_objective(self) -> float:
+        # Get route distances
         if self.use_delta_eval:
-            if self._cached_sum_of_squares == 0:
-                return 0
-            jain = self._cached_total_distance / (self.inst.n_K * self._cached_sum_of_squares)
-            return self._cached_total_distance + self.inst.rho * (1 - jain)
+            total_distance = self._cached_total_distance
+            distances = [route.distance for route in self.routes]
+        else:
+            distances = [route.distance for route in self.routes]
+            total_distance = sum(distances)
 
-        total_distance, sum_of_squares = 0, 0
-        for route in self.routes:
-            total_distance += route.distance
-            sum_of_squares += route.distance**2
-        if sum_of_squares == 0:
-            return 0
-        jain = total_distance / (self.inst.n_K * sum_of_squares)
-        return total_distance + self.inst.rho * (1 - jain)
+        # Calculate fairness based on selected measure
+        if self.fairness_measure == "jain":
+            # Jain's fairness index: J = total_distance² / (K * sum_of_squared_distances)
+            if self.use_delta_eval:
+                sum_of_squares = self._cached_sum_of_squares
+            else:
+                sum_of_squares = sum(d**2 for d in distances)
+
+            if sum_of_squares == 0:
+                return 0
+            fairness = total_distance**2 / (self.inst.n_K * sum_of_squares)
+
+        elif self.fairness_measure == "max_min":
+            # Max-min fairness: M = min(d(Rk)) / max(d(Rk))
+            non_zero_distances = [d for d in distances if d > 0]
+            if not non_zero_distances:
+                fairness = 1.0  # Perfect fairness when all routes are empty
+            else:
+                min_d = min(non_zero_distances)
+                max_d = max(distances)
+                fairness = min_d / max_d if max_d > 0 else 1.0
+
+        elif self.fairness_measure == "gini":
+            # Gini coefficient (inverted): G = 1 - Σ|d(Rk') - d(Rk'')|/(2*K*Σd(Rk'))
+            if total_distance == 0:
+                fairness = 1.0  # Perfect fairness when all routes are empty
+            else:
+                sum_abs_diff = sum(abs(d1 - d2) for d1 in distances for d2 in distances)
+                fairness = 1 - sum_abs_diff / (2 * self.inst.n_K * total_distance)
+
+        else:
+            raise ValueError(f"Unknown fairness measure: {self.fairness_measure}")
+
+        return total_distance + self.inst.rho * (1 - fairness)
 
     def initialize(self, k):
         from src.algorithms.construction_heuristics import GreedyConstructionHeuristic
