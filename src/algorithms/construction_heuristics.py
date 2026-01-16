@@ -14,6 +14,7 @@ class ConstructionHeuristic(ABC):
     def __init__(self, initial_solution: SCFPDPSolution) -> None:
         self.instance: SCFPDPInstance = initial_solution.inst
         self.solution: SCFPDPSolution = initial_solution
+        self.initial_served_requests: set[int] = initial_solution.get_all_served_requests()
 
     @abstractmethod
     def _select_next_request(self, route: Route, excluded_requests: set[int], insertion_position: int) -> int | None:
@@ -61,7 +62,7 @@ class ConstructionHeuristic(ABC):
         return (request_id, insertion_position)
 
     def construct(self) -> None:
-        served_requests: set[int] = set()
+        served_requests: set[int] = self.initial_served_requests.copy()
         full_routes: list[Route] = []
 
         while len(served_requests) < self.instance.gamma and len(full_routes) < len(self.solution.routes):
@@ -286,22 +287,127 @@ class ClusterBasedConstructionHeuristic(GreedyConstructionHeuristic):
         return self._find_closest_fitting_pickup_location(route, excluded_non_cluster, insertion_position)
 
 
+class HybridFlexibleClusteredConstructionHeuristic(FlexiblePickupAndDropoffConstructionHeuristic, ClusterBasedConstructionHeuristic):
+    def select_next_request_and_position(self, route: Route, excluded_requests: set[int]) -> tuple[int, int] | None:
+        """
+        Select request with minimum total insertion cost, but only from this vehicle's cluster.
+        """
+        vehicle_idx = self.solution.routes.index(route)
+
+        # Get requests assigned to this vehicle that haven't been served
+        cluster_requests = self.vehicle_requests[vehicle_idx] - excluded_requests
+
+        if not cluster_requests:
+            # If no requests left in cluster, route is finalized
+            return None
+
+        best_request = None
+        best_total_cost = float('inf')
+        best_pickup_pos = None
+        best_dropoff_dist = None
+
+        # Only evaluate requests from this vehicle's cluster
+        for request_id in cluster_requests:
+            result = self._find_best_insertion_cost(route, request_id)
+            if result is None:
+                continue
+
+            cost, pickup_pos, dropoff_dist = result
+            if cost < best_total_cost:
+                best_total_cost = cost
+                best_request = request_id
+                best_pickup_pos = pickup_pos
+                best_dropoff_dist = dropoff_dist
+
+        if best_request is None:
+            return None
+
+        # Store for select_dropoff_distance to use
+        self._cached_dropoff_distance = best_dropoff_dist
+        return (best_request, best_pickup_pos)
+
+
+class RandomizedHybridConstructionHeuristic(HybridFlexibleClusteredConstructionHeuristic):
+    """
+    Randomized version of hybrid heuristic using Restricted Candidate List (RCL).
+
+    Uses deterministic clustering (same as HybridFlexibleClusteredConstructionHeuristic)
+    but randomly selects from the top-k best insertion positions instead of always
+    picking the minimum cost. This produces diverse solutions for meta-heuristics
+    while maintaining good quality.
+    """
+
+    def __init__(self, initial_solution: SCFPDPSolution, rcl_size: int = 10):
+        super().__init__(initial_solution)
+        self.rcl_size = rcl_size
+
+    def select_next_request_and_position(self, route: Route, excluded_requests: set[int]) -> tuple[int, int] | None:
+        """
+        Select request randomly from RCL of top-k lowest insertion costs within cluster.
+        """
+        vehicle_idx = self.solution.routes.index(route)
+
+        # Get requests assigned to this vehicle that haven't been served
+        cluster_requests = self.vehicle_requests[vehicle_idx] - excluded_requests
+
+        if not cluster_requests:
+            # If no requests left in cluster, route is finalized
+            return None
+
+        # Evaluate all requests in cluster, collect (cost, request_id, pickup_pos, dropoff_dist)
+        candidates = []
+        for request_id in cluster_requests:
+            result = self._find_best_insertion_cost(route, request_id)
+            if result is None:
+                continue
+
+            cost, pickup_pos, dropoff_dist = result
+            candidates.append((cost, request_id, pickup_pos, dropoff_dist))
+
+        if not candidates:
+            return None
+
+        # Sort by cost and take top rcl_size
+        candidates.sort()
+        rcl = candidates[:min(self.rcl_size, len(candidates))]
+
+        # Randomly select from RCL
+        selected = random.choice(rcl)
+        _, request_id, pickup_pos, dropoff_dist = selected
+
+        # Store for select_dropoff_distance to use
+        self._cached_dropoff_distance = dropoff_dist
+        return (request_id, pickup_pos)
+
+
 if __name__ == '__main__':
     test_instance = SCFPDPInstance('10/test_instance_small.txt')
-    competition_instance = SCFPDPInstance('1000/competition/instance61_nreq1000_nveh20_gamma879.txt')
+    competition_instance = SCFPDPInstance('2000/competition/instance61_nreq2000_nveh40_gamma1829.txt')
+    # competition_instance = SCFPDPInstance('1000/competition/instance61_nreq1000_nveh20_gamma879.txt')
     # competition_instance = SCFPDPInstance('100/competition/instance61_nreq100_nveh2_gamma91.txt')
 
-    instance = test_instance
+    instance = competition_instance
 
-    _initial_solution = SCFPDPSolution(inst=instance, use_delta_eval=True)
-    GreedyConstructionHeuristic(_initial_solution).construct()
-    print("Greedy solution: ")
-    print(_initial_solution)
-
-    # _initial_solution_1 = SCFPDPSolution(inst=instance)
+    # _initial_solution = SCFPDPSolution(inst=instance, use_delta_eval=True)
+    # GreedyConstructionHeuristic(_initial_solution).construct()
+    # print("Greedy solution: ")
+    # print(_initial_solution)
+    #
+    # _initial_solution_1 = SCFPDPSolution(inst=instance, use_delta_eval=True)
     # RandomizedConstructionHeuristic(_initial_solution_1).construct()
     # print("\n\nRandomized solution: ")
     # print(_initial_solution_1)
+    #
+    # _initial_solution_2 = SCFPDPSolution(inst=instance, use_delta_eval=True)
+    # RandomizedHybridConstructionHeuristic(_initial_solution_2).construct()
+    # print("\n\nRandomized solution 2: ")
+    # print(_initial_solution_2)
+
+    _initial_solution_3 = SCFPDPSolution(inst=instance, use_delta_eval=True)
+    FlexiblePickupAndDropoffConstructionHeuristic(_initial_solution_3).construct()
+    print("\n\nGreedy solution 2: ")
+    print(_initial_solution_3)
+    _initial_solution_3.write_to_file("greedy_construction")
     #
     # best_solution = _initial_solution if _initial_solution.calc_objective() < _initial_solution_1.calc_objective() else _initial_solution_1
     # best_algo = "greedy_construction" if _initial_solution.calc_objective() < _initial_solution_1.calc_objective() else "randomized_construction"

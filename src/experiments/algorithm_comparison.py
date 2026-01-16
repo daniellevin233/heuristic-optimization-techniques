@@ -71,6 +71,9 @@ class ComparisonResults:
     is_significant: bool = False  # p < 0.05
     # Raw percentage differences for boxplot
     percent_diffs_array: np.ndarray | None = None
+    # Construction time statistics
+    algorithm1_mean_time: float | None = None  # seconds
+    algorithm2_mean_time: float | None = None  # seconds
 
 
 @dataclass
@@ -193,6 +196,14 @@ def compare_on_single_size(
     alg2_mean = float(np.mean(alg2_objs))
     alg2_std = float(np.std(alg2_objs, ddof=1))
 
+    # Extract construction times
+    alg1_times = np.array([r.construction_time for r in alg1_results])
+    alg2_times = np.array([r.construction_time for r in alg2_results])
+
+    # Calculate mean construction times
+    alg1_mean_time = float(np.mean(alg1_times))
+    alg2_mean_time = float(np.mean(alg2_times))
+
     # Calculate pairwise percentage differences
     percent_diffs = (alg1_objs - alg2_objs) / alg1_objs * 100
     mean_percent_diff = float(np.mean(percent_diffs))
@@ -243,6 +254,8 @@ def compare_on_single_size(
         wilcoxon_p_value=wilcoxon_p,
         is_significant=is_significant,
         percent_diffs_array=percent_diffs,
+        algorithm1_mean_time=alg1_mean_time,
+        algorithm2_mean_time=alg2_mean_time,
     )
 
 

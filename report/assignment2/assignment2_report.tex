@@ -122,14 +122,54 @@ as shown in the next section.
     \label{fig:clustered_vs_flex}
 \end{figure}
 
-\subsubsection{Hybrid vs Flexible Pickup \& Dropoff}
+\subsubsection{Flexible Pickup \& Dropoff vs Hybrid}
+Finally, the best performing approach (Flexible Pickup \& Dropoff) was compared to the
+hybrid approach that combines clustering and greediness of requests serving provided
+by the flexible approach.
+Despite the intuitive expectation that the hybrid will perform better, its quality was worse compared to the
+flexible approach, especially as the instance size grows.
+In the hindsight it made sense, because clustering limits the search space significantly without considering
+the capacity distribution, while the flexible approach goes over all possible requests assignments greedily.
+The main benefit of the hybrid approach is reduced runtime explained by smaller search space.
+As can be seen in Figure~\ref{fig:flex_vs_hybrid}, for instances of size 50 the Wilcoxon test shows that
+the $H_0$ hypothesis cannot be rejected ($p = 0.2801$).
+However, for larger instances the flexible approach clearly outperforms the hybrid one, with an average
+objective improvement of $8.49\%$ across all instance sizes.
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{FlexPickupDropoff_vs_Hybrid_50-100-200-500-1000_20260115_232003}
+    \caption{Flexible Pickup \& Dropoff vs Hybrid}
+    \label{fig:flex_vs_hybrid}
+\end{figure}
+
+\subsubsection{Runtime Comparison: Flexible vs Hybrid}
+To showcase the benefit of the hybrid approach in runtime I ran both approaches on 30 instances of size 50, 100, 200,
+500 and 1000 and measured average construction runtime as can be seen in Figure~\ref{fig:runtime_flex_vs_hybrid}.
+The left subplot shows mean runtimes on logarithmic scale, while the right subplot displays speedup ratios with
+the Flexible approach runtime being the baseline.
+For instances of size 50, both approaches perform similarly with slightly-negative-to-no speedup, but the advantage
+of the hybrid approach becomes more pronounced with larger instance sizes, reaching a ~13x speedup
+for instances of size 1000.
+The overall speedup of 3.59x is computed as the geometric mean of individual speedup ratios rather
+than arithmetic mean, as geometric mean is more appropriate for multiplicative factors and prevents
+large ratios from dominating the average.
+This confirms that clustering effectively reduces the search space, resulting in computational savings despite
+the solution quality trade-off discussed earlier.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{Runtime_FlexPickupDropoff_vs_Hybrid_20260116_110816}
+    \caption{Runtime Comparison: Flexible Pickup \& Dropoff vs Hybrid}
+    \label{fig:runtime_flex_vs_hybrid}
+\end{figure}
 
 
 \section{Metaheuristic 1: Population-Based Simulated Annealing}
 % Choose from: Evolutionary/Genetic Algorithm, Ant Colony Optimization,
 % (Adaptive) Large Neighborhood Search, or Hybrid Algorithm
 % Compare to the SA from Assignment 1
+TODO
 
 \subsection{Idea}
 % TODO: Describe the main concept and motivation for choosing this algorithm
@@ -158,19 +198,70 @@ as shown in the next section.
 % \end{table}
 
 \section{Metaheuristic 2: ALNS}
-% Choose a different algorithm from the list above
 
 \subsection{Idea}
-% TODO: Describe the main concept and motivation for choosing this algorithm
+Adaptive Large Neighborhood Search iteratively destroys and repairs parts of the current solution sampling from sets
+ of operators.
+Operator selection is based on a wheel roulette choice based on adaptive weights that favor operators 
+discovering better solutions, balancing exploration and exploitation throughout the search.
+The algorithm combines this with simulated annealing acceptance as suggested in the lecture to escape local optima.
 
-\subsection{Algorithm Design}
-% TODO: Describe the algorithm structure
+\subsection{Operators}
+The implementation uses 3 destroy operators and 3 repair operators, yielding 9 total combinations chosen
+for relative simplicity while maintaining good exploration capabilities.
 
-\subsection{Implementation Details}
-% TODO: Describe specific implementation choices
+Each destroy operator removes $q$ requests, where $q$ is sampled uniformly from the range
+\[[min\_removal\_percentage, max\_removal\_percentage]\] of total served requests (default $[10\%, 40\%]$).
+
+\textbf{Destroy Operators:}
+\begin{itemize}
+    \item \textbf{Random Removal:} Removes $q$ randomly selected requests to achieve unbiased exploration of the solution space.
+    \item \textbf{Worst Cost Removal:} Removes $q$ requests with highest distance contribution to the objective, targeting expensive assignments for reassignment.
+    \item \textbf{Longest Route Removal:} Removes $q$ requests from vehicles with longest routes to improve fairness and balance workload.
+\end{itemize}
+
+\textbf{Repair Operators:}
+\begin{itemize}
+    \item \textbf{Greedy Repair:} Reinserts removed requests using the flexible construction heuristic, evaluating all pickup-dropoff position combinations and selecting minimum insertion cost.
+    \item \textbf{Random Greedy Repair:} Reinserts requests at random feasible positions to introduce diversification.
+    \item \textbf{Objective-Aware Repair:} Reinserts requests by minimizing the full objective including fairness
+    penalty, temporarily inserting each request in all feasible positions and evaluating complete solution quality.
+    This repair operator was mainly added to address the fairness measures that are ignored in other operators.
+\end{itemize}
+
+\subsection{Adaptive Weight Mechanism}
+Operators are scored based on solution quality: to reward operators that discover new best solutions, they're awarded 
+10 points, while accepted solutions award 1 point. 
+Rejected solutions are implicitly awarded 0 points. 
+Weights are updated every 100 iterations using the adaptive formula 
+\[\rho_i \leftarrow \rho_i \cdot (1-\gamma) + \gamma \cdot \frac{s_i}{a_i}\] where $\rho_i$ is the weight, $\gamma$
+is the reaction factor, $s_i$ is the total score, and $a_i$ is the number of applications.
+This mechanism rewards operators that consistently find improvements while maintaining exploration thanks to non-zero 
+initial weights.
+Operator selection uses roulette wheel selection with probabilities proportional to current weights.
 
 \subsection{Parameters}
-% TODO: List all parameters with initial/default values
+\begin{table}[H]
+\centering
+\caption{ALNS Parameters}
+\begin{tabular}{l l l}
+\toprule
+Parameter & Description & Default Value \\
+\midrule
+\texttt{max\_iterations} & Maximum iterations & 10000 \\
+\texttt{max\_time\_seconds} & Maximum runtime & 300s (5 min) \\
+\texttt{max\_iterations\_without\_improvement} & Early stopping threshold & 1000 \\
+\texttt{weight\_update\_period} & Weight update frequency & 100 \\
+\texttt{reaction\_factor} ($\gamma$) & Adaptation speed & 0.1 \\
+\texttt{min\_removal\_percentage} & Minimum requests to remove & 10\% \\
+\texttt{max\_removal\_percentage} & Maximum requests to remove & 40\% \\
+\texttt{initial\_temperature} & Initial SA temperature & 100.0 \\
+\texttt{cooling\_rate} & Temperature decay & 0.99 \\
+\texttt{score\_new\_best} & Reward for new best & 10.0 \\
+\texttt{score\_accepted} & Reward for acceptance & 1.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \section{Fairness Measure Investigation}
 
