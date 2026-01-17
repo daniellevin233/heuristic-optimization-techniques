@@ -199,7 +199,6 @@ TODO
 
 \section{Metaheuristic 2: ALNS}
 
-\subsection{Idea}
 Adaptive Large Neighborhood Search iteratively destroys and repairs parts of the current solution sampling from sets
  of operators.
 Operator selection is based on a wheel roulette choice based on adaptive weights that favor operators 
@@ -265,30 +264,144 @@ Parameter & Description & Default Value \\
 
 \section{Fairness Measure Investigation}
 
-\subsection{Max-Min Fairness}
-The max-min fairness measure is defined as:
-\[
-M = \frac{\min_{k \in K} d(R_k)}{\max_{k \in K} d(R_k)}
-\]
-% TODO: Describe interpretation and properties
+Three fairness measures were evaluated.
+For each of them values closer to 1 indicate more balanced workload distribution which makes them comparable.
+\begin{itemize}
+    \item \textbf{Jain Fairness Index:} $J = \frac{(\sum_{k \in K} d(R_k))^2}{n_K \sum_{k \in K} d(R_k)^2}$
+    where $d(R_k)$ is the distance of route $k$.
+    \item \textbf{Max-Min Fairness:} $M = \frac{\min_{k \in K} d(R_k)}{\max_{k \in K} d(R_k)}$ measuring the ratio
+    of the gap between shortest and longest routes.
+    \item \textbf{Gini Coefficient (Inverted):}
+    $G = 1 - \frac{\sum_{k' \in K} \sum_{k'' \in K} |d(R_{k'}) - d(R_{k''})| }{2 n_K \sum_{k' \in K} d(R_{k'})}$.
+\end{itemize}
 
-\subsection{Gini Coefficient (Inverted)}
-The inverted Gini coefficient is defined as:
-\[
-G = 1 - \frac{\sum_{k' \in K} \sum_{k'' \in K} |d(R_{k'}) - d(R_{k''})| }{2 n_K \sum_{k' \in K} d(R_{k'})}
-\]
-% TODO: Describe interpretation and properties
+\subsection{Experimental Setup}
+After having considered multiple setups, I have decided to use a single instance of size 500 with 10 vehicles
+as this is the smallest instance with sensible number of vehicles where we can actually compare the distribution
+of distances and stops across these vehicles.
+For ALNS 60-second timeout was used per run.
+Three main experiments have been conducted:
+\begin{enumerate}
+    \item \textbf{Greedy vs ALNS}: Flexible greedy construction heuristic (blind to fairness by design) vs
+    ALNS with all destroy and repair operators ($3 \times 3$).
+    \item \textbf{ALNS Objective-Aware Repair}: ALNS with all operators vs ALNS without ObjectiveAware repair vs
+    ALNS with only ObjectiveAware repair.
+    \item \textbf{ALNS Longest-Route Destroy}: ALNS with all operators vs ALNS without LongestRoute destroy vs
+    ALNS with only LongestRoute destroy.
+\end{enumerate}
+Each experiment evaluates all three fairness measures (Jain, Max-Min, Gini).
+Results were analyzed across objective value composition to capture how much the fairness measure contributes
+to the total objective value, route distance distributions to compare how different measures affect the distribution
+of routes, and number of stops per route to examine another angle of fairness.
 
-\subsection{Implementation}
-% TODO: Describe how the fairness measures were implemented
+\subsection{Greedy vs ALNS}
+This experiment compares the construction heuristic baseline against \texttt{ALNS} to evaluate the metaheuristic's ability to improve solutions for different fairness measures.
+Figure~\ref{fig:greedy_vs_alns_fairness_comparison_obj} shows objective values and composition, while Figure~\ref{fig:greedy_vs_alns_fairness_comparison} presents fairness index values and route distributions.
 
-\subsection{Experimental Results}
-% TODO: Compare how objective values change with different fairness measures
-% TODO: Analyze how the number of stops per route changes
-% Include tables and figures
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{Greedy_vs_ALNS_instance61_nreq500_nveh10_fairness_objective_comparison}
+    \caption{Algorithm Comparison: Objective Performance}
+    \label{fig:greedy_vs_alns_fairness_comparison_obj}
+\end{figure}
 
-\subsection{Analysis}
-% TODO: Discuss findings and insights about fairness measure impact
+The left subplot of Figure~\ref{fig:greedy_vs_alns_fairness_comparison_obj} shows that \texttt{ALNS} produces best results for \texttt{jain} index, slightly worse for \texttt{max\_min}, and worst for \texttt{gini} index.
+The right subplot reveals that minimal fairness penalty (contribution of fairness index to total objective) is paid for \texttt{max\_min} in contrast to the \texttt{Greedy} approach, proving that diverse destroy and repair operators embedded in \texttt{ALNS} can capture and learn different objectives.
+The \texttt{LongestRouteRemovalOperator} helps the algorithm identify long routes invisible to \texttt{Greedy} construction and redistribute requests between vehicles, demonstrating that destroy and repair operator choice is the main factor affecting fairness performance in \texttt{ALNS}.
+For the \texttt{Greedy} approach, performance varies across fairness measures due to its deterministic and fairness-agnostic construction—requests are distributed evenly between vehicles, which explains why \texttt{jain} and \texttt{gini} result in lowest fairness penalty, while \texttt{max\_min} sees an increase because even request distribution does not guarantee fairness in distance lengths per vehicle, potentially leaving distant outlier vehicles accidentally assigned geographically spread requests.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{Greedy_vs_ALNS_instance61_nreq500_nveh10_fairness_comparison}
+    \caption{Algorithm Comparison: Fairness Analysis}
+    \label{fig:greedy_vs_alns_fairness_comparison}
+\end{figure}
+
+Figure~\ref{fig:greedy_vs_alns_fairness_comparison} reveals the actual fairness of achieved solutions.
+The Fairness Index subplot shows that \texttt{Greedy} construction optimizes well for balanced indexes like \texttt{jain} and \texttt{gini}, outputting fairness values around $0.9$, while for the unbalanced \texttt{max\_min} it achieves only $0.77$.
+In contrast, \texttt{ALNS} leverages \texttt{LongestRouteRemovalOperator} to reach $0.9916$ even for this challenging index, demonstrating \texttt{ALNS}'s universality despite its dependence on operator choice.
+The middle and right subplots show \texttt{Greedy} generating deterministic routes with constant stops per vehicle, while \texttt{ALNS} produces more diverse routes, especially for \texttt{jain} index.
+For \texttt{ALNS}, mean values fall below median for both route distances and stops, indicating workload distribution skewed toward few very short routes—this skew is most pronounced for \texttt{gini} with one outlier below 1000 distance and 20 stops versus medians above 4000 and 90 respectively.
+With 10 vehicles serving 500 requests (average $\sim$50 requests per route), these extreme outlier routes (20 vs 90 stops) suggest \texttt{gini} optimization may sacrifice some vehicles entirely to achieve better overall pairwise differences, as the \texttt{gini} coefficient's sensitivity to all pairwise differences amplifies the impact of extreme values in the adaptive weight mechanism.
+In contrast, \texttt{max\_min} shows near-perfect mean-median alignment because this index only considers shortest and longest routes, causing the algorithm to minimize their difference and squeeze remaining routes densely between them.
+
+\subsection{ALNS Objective-Aware Repair}
+This experiment isolates the impact of the \texttt{ObjectiveAwareRepairOperator}, which explicitly minimizes the full objective including fairness penalty during reinsertion.
+Thanks to this experiment I found a bug in fairness calculation for the \texttt{ObjectiveAware} repair operator, which was fixed before conducting the final experiment.
+Three \texttt{ALNS} configurations were tested: with all operators, without \texttt{ObjectiveAware}, and with only \texttt{ObjectiveAware}.
+Figure~\ref{fig:alns_destroy_objaware_analysis_objective} and Figure~\ref{fig:alns_destroy_objaware_analysis} show the results.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]
+    {ALNS_Repair_instance61_nreq500_nveh10_gamma430_objective_aware_fairness_objective}
+    \caption{ALNS Objective-Aware Repair Impact: Objective Performance}
+    \label{fig:alns_destroy_objaware_analysis_objective}
+\end{figure}
+
+Figure~\ref{fig:alns_destroy_objaware_analysis_objective} shows that the version without \texttt{ObjectiveAware} (\texttt{ALNS-NoObjAware}) provided the best results.
+This is counterintuitive—debugging the \texttt{ObjectiveAware} operator revealed no bugs, suggesting the negative impact stems from slower runtime due to frequent objective recalculation.
+For \texttt{ALNS}, when one operator is slower than others, it reduces the number of iterations the entire algorithm can complete within the time limit, and my implementation has no punishment mechanism to account for operator runtime.
+The right subplot confirms this problem, as \texttt{ALNS-OnlyObjAware} produces identical values for all three fairness indexes in both total objective and fairness penalty.
+If indeed bug-free, this suggests \texttt{ALNS} reaches local optima it cannot escape, which is more likely with a single repair operator.
+Additionally, \texttt{max\_min} resulted in the highest fairness penalty, yet this didn't worsen overall objective value, indicating that \texttt{ALNS} and the operators implicitly found good balance between distances and fairness.
+Meanwhile, \texttt{jain} was optimized well in both cases but with higher total objective, suggesting the operators implicitly favor fair distribution over total distance minimization, which constitutes the larger portion of objective values.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{ALNS_Repair_instance61_nreq500_nveh10_gamma430_objective_aware_fairness}
+    \caption{ALNS Objective-Aware Repair Impact: Fairness Analysis}
+    \label{fig:alns_destroy_objaware_analysis}
+\end{figure}
+
+Figure~\ref{fig:alns_destroy_objaware_analysis} confirms insights from Figure~\ref{fig:alns_destroy_objaware_analysis_objective}—diverse operators (\texttt{ALNS-Full}) achieve better total objective by sacrificing fairness index significance.
+This is evident for \texttt{max\_min} and \texttt{gini}, where fairness index is lowest when using all operators.
+Route distances and stops are most imbalanced with few very short routes for \texttt{ALNS-Full} and \texttt{ALNS-NoObjAware} variants, proving that \texttt{ObjectiveAware} does what it's designed to do: optimize the objective function as a whole.
+The \texttt{ALNS-OnlyObjAware} variant produces fixed stops per route ($\sim$85) with worse total objective as shown in Figure~\ref{fig:alns_destroy_objaware_analysis_objective}.
+The \texttt{max\_min} showed highest variation in distances and stops for \texttt{ALNS} variants with multiple operators, indicating \texttt{ALNS} didn't capture objective fluctuations caused by this fairness index, again supported by fairness being negligible compared to distance in total objective calculation.
+This is not the case for \texttt{jain}, likely due to its quadratic nature that punishes imbalanced routes more strongly.
+
+
+\subsection{ALNS Longest-Route Destroy}
+This experiment evaluates the \texttt{LongestRouteRemovalOperator}, which targets route balancing by removing requests from longest routes.
+Three \texttt{ALNS} configurations were tested: with all operators, without \texttt{LongestRoute}, and with only \texttt{LongestRoute}.
+Figure~\ref{fig:alns_destroy_longestroute_analysis_objective} and Figure~\ref{fig:alns_destroy_longestroute_analysis} show the results.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{ALNS_Destroy_instance61_nreq500_nveh10_gamma430_longest_route_destroy_objective}
+    \caption{ALNS Longest-Route Destroy Impact: Objective Performance}
+    \label{fig:alns_destroy_longestroute_analysis_objective}
+\end{figure}
+
+The results reveal a counterintuitive finding: \texttt{ALNS-NoLongest} (without the fairness-targeting operator) produces the most fair solutions across all measures (\texttt{jain}=0.9905, \texttt{max\_min}=0.9907, \texttt{gini}=0.9876), while \texttt{ALNS-OnlyLongest} produces the least fair solutions (\texttt{jain}=0.8510, \texttt{max\_min}=0.7831, \texttt{gini}=0.8118).
+This contradicts the intuition that explicitly targeting fairness should improve it.
+Several explanations are possible: (1) operator diversity enables more effective search—the combination of \texttt{Random} and \texttt{WorstCost} operators may naturally balance routes while \texttt{LongestRoute} alone is too myopic; (2) \texttt{LongestRoute} may be overly aggressive, destroying good route structures that repair operators struggle to rebuild while maintaining balance; (3) single-operator variants limit exploration and prevent the adaptive weight mechanism from learning effective strategies, potentially trapping \texttt{ALNS} in local optima as observed with \texttt{ObjectiveAware}; (4) the standard deviation of stops per route confirms this—\texttt{NoLongest} shows remarkably low variation (3.58-6.75) indicating naturally balanced solutions, while \texttt{OnlyLongest} shows high variation (39.14-48.29) suggesting disruptive behavior.
+This can be verified by analyzing operator selection frequencies over iterations, plotting convergence curves to detect early stagnation, examining solution diversity throughout search, testing different removal percentages for \texttt{LongestRoute}, and comparing iteration counts between variants to rule out runtime effects.
+The higher objective values for \texttt{NoLongest} suggest it prioritizes fairness at the expense of total distance, yet this tradeoff still yields better overall objective than \texttt{OnlyLongest} for most fairness measures, further supporting the hypothesis that operators combination matters more than individual operator design.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{ALNS_Destroy_instance61_nreq500_nveh10_gamma430_longest_route_destroy_fairness}
+    \caption{ALNS Longest-Route Destroy Impact: Fairness Analysis}
+    \label{fig:alns_destroy_longestroute_analysis}
+\end{figure}
+
+Figure~\ref{fig:alns_destroy_longestroute_analysis} reveals how different fairness indexes respond to operator configurations.
+For \texttt{ALNS-NoLongest}, all three indexes achieve remarkably similar high fairness values (0.99+) with minimal route variation, suggesting that \texttt{Random} and \texttt{WorstCost} operators naturally produce balanced solutions regardless of fairness measure.
+In contrast, \texttt{ALNS-OnlyLongest} exhibits strong sensitivity to fairness measure choice—\texttt{max\_min} suffers most (0.7831) with highest route variation (std=48.29), while \texttt{jain} performs relatively better (0.8510, std=39.14), likely because \texttt{jain}'s quadratic penalty on variance makes the adaptive weight mechanism respond more strongly to imbalanced routes.
+For \texttt{ALNS-Full}, \texttt{gini} achieves the best total objective (38738) but at the cost of lowest fairness (0.8347), while \texttt{max\_min} produces more balanced routes (0.9040) with higher objective (39460), demonstrating that different fairness measures lead to fundamentally different solution structures even with identical operators.
+The consistently low standard deviation for \texttt{ALNS-NoLongest} (3.58-6.75 stops) versus \texttt{ALNS-OnlyLongest} (39.14-48.29 stops) across all fairness measures confirms that operator diversity, not explicit fairness targeting, is the primary driver of balanced solutions.
+This suggests the choice of fairness measure matters most when operator diversity is limited—\texttt{ALNS-Full} and \texttt{ALNS-NoLongest} adapt well to any fairness measure, while \texttt{ALNS-OnlyLongest} struggles particularly with \texttt{max\_min} due to its focus solely on extremes without the exploration capabilities that other operators provide.
+
+\subsection{Conclusion}
+The \texttt{gini} coefficient showed less sensitivity to small numbers of outliers compared to \texttt{jain}, which is expected due to \texttt{gini}'s linear ratio as a function of route differences, while \texttt{jain} focuses strongly on variance by squaring distances.
+The \texttt{max\_min} made \texttt{ALNS} produce the most balanced solutions by grouping all routes between the shortest and longest routes.
+However, for other approaches (as shown for \texttt{Greedy}), this fairness index might cause worse results.
+Across all three experiments (\texttt{Greedy} vs \texttt{ALNS}, \texttt{ObjectiveAware} Repair, \texttt{LongestRoute} Destroy), a consistent pattern emerges: operator diversity is critical—variants with multiple operators consistently outperformed single-operator configurations, even when that single operator explicitly targeted fairness or objective optimization.
+This suggests that \texttt{ALNS}'s strength lies not in individual operator sophistication, but in the diverse effect that enables escaping from local optima and adaptation to different problem characteristics.
+Bottom line: more advanced metaheuristics such as \texttt{ALNS} are more universal, as they capture the sensitivity of the objective function much better than simpler \texttt{Greedy} approaches.
+However, they're hard to fine-tune and as shown the choice and combination of operators has a significant impact on the algorithm's ability to balance different components of the objective function.
 
 \section{Automated Parameter Tuning}
 

@@ -167,7 +167,8 @@ class LongestRouteRemovalOperator(DestroyOperator):
 
         # Sort routes by distance (descending)
         sorted_routes = sorted(
-            [(route.distance, route) for route in destroyed.solution.routes if route.served_requests],
+            [route for route in destroyed.solution.routes if route.served_requests],
+            key=lambda route: route.distance,
             reverse=True
         )
 
@@ -177,7 +178,7 @@ class LongestRouteRemovalOperator(DestroyOperator):
         removed_count = 0
 
         # Remove q requests from longest route(s)
-        for _, route in sorted_routes:
+        for route in sorted_routes:
             if removed_count >= q:
                 break
 
@@ -238,36 +239,63 @@ class ObjectiveAwareRepairOperator(RepairOperator):
     def _calculate_objective_delta(self, solution, route, request_id, pickup_pos, dropoff_dist):
         """
         Calculate objective change if request is inserted without actually modifying solution.
-
-        Objective = total_distance + rho * (1 - jains_fairness)
-        Where jains_fairness = total_distance² / (K * sum_of_squared_distances)
+        Respects the configured fairness measure (jain, max_min, or gini).
         """
         # Current state
         old_route_distance = route.distance
-        old_total_distance = sum(r.distance for r in solution.routes)
-        old_sum_squared = sum(r.distance ** 2 for r in solution.routes)
+        old_distances = [r.distance for r in solution.routes]
+        old_total_distance = sum(old_distances)
 
         # Calculate distance delta for this insertion
         distance_delta = route.calculate_request_serving_delta(request_id, pickup_pos, dropoff_dist)
         new_route_distance = old_route_distance + distance_delta
 
-        # New totals after insertion
+        # New distances after insertion
+        new_distances = old_distances.copy()
+        route_idx = solution.routes.index(route)
+        new_distances[route_idx] = new_route_distance
         new_total_distance = old_total_distance + distance_delta
-        new_sum_squared = old_sum_squared - old_route_distance**2 + new_route_distance**2
 
-        # Calculate objectives
+        # Calculate fairness values
         K = solution.inst.n_K
         rho = solution.inst.rho
+        fairness_measure = solution.fairness_measure
 
-        # Avoid division by zero
-        if old_sum_squared == 0 or new_sum_squared == 0:
-            return distance_delta  # Fallback to distance only
+        if fairness_measure == "jain":
+            old_sum_squared = sum(d**2 for d in old_distances)
+            new_sum_squared = sum(d**2 for d in new_distances)
 
-        old_jains = old_total_distance**2 / (K * old_sum_squared)
-        new_jains = new_total_distance**2 / (K * new_sum_squared)
+            if old_sum_squared == 0 or new_sum_squared == 0:
+                return distance_delta
 
-        old_objective = old_total_distance + rho * (1 - old_jains)
-        new_objective = new_total_distance + rho * (1 - new_jains)
+            old_fairness = old_total_distance**2 / (K * old_sum_squared)
+            new_fairness = new_total_distance**2 / (K * new_sum_squared)
+
+        elif fairness_measure == "max_min":
+            old_non_zero = [d for d in old_distances if d > 0]
+            new_non_zero = [d for d in new_distances if d > 0]
+
+            if not old_non_zero or not new_non_zero:
+                return distance_delta
+
+            old_fairness = min(old_non_zero) / max(old_distances) if max(old_distances) > 0 else 1.0
+            new_fairness = min(new_non_zero) / max(new_distances) if max(new_distances) > 0 else 1.0
+
+        elif fairness_measure == "gini":
+            if old_total_distance == 0 or new_total_distance == 0:
+                return distance_delta
+
+            old_sum_abs_diff = sum(abs(d1 - d2) for d1 in old_distances for d2 in old_distances)
+            new_sum_abs_diff = sum(abs(d1 - d2) for d1 in new_distances for d2 in new_distances)
+
+            old_fairness = 1 - old_sum_abs_diff / (2 * K * old_total_distance)
+            new_fairness = 1 - new_sum_abs_diff / (2 * K * new_total_distance)
+
+        else:
+            raise ValueError(f"Unknown fairness measure: {fairness_measure}")
+
+        old_objective = old_total_distance + rho * (1 - old_fairness)
+        new_objective = new_total_distance + rho * (1 - new_fairness)
 
         return new_objective - old_objective
 
