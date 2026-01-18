@@ -673,9 +673,45 @@ sqlite database used for storing and visualizing results, as this database is no
 The framework of loading ALNS configs was adjusted to automatically discover the tuned parameters configuration of the
 closest instance size, thus for instance size 1000 the parameters tuned for instance size 500 will be used.
 
+\subsection{Impact of Parameter Tuning: ALNS Default vs ALNS Tuned}
+
+To quantify the value of automated parameter tuning, this experiment compares ALNS using default parameters against
+ALNS with Optuna-tuned instance-size-specific parameters.
+Both variants use identical destroy and repair operators, initial construction heuristic
+(\texttt{FlexiblePickupAndDropoffConstructionHeuristic}), and time budgets (30s for n=50, 60s for larger instances).
+The only difference is the parameter configuration: default values from Table~\ref{tab:tuned_params_n50} versus
+tuned values from Section~\ref{subsec:alns_tuning_results}.
+
+Figure~\ref{fig:alns_default_vs_tuned_comparison} presents the comparison across all instance sizes.
+The results of the comparison of default and tuned ALNS variants are very inconclusive.
+This is reflected in almost all recorded statistics - the total difference between objective values across all sizes
+expressed in relative percentage shows that the tuned configuration is better only by 0.1228\%.
+In terms of total wins it's 74 for default vs 73 for the tuned and 3 ties - again very close.
+Looking at the p-value the only instance size where the $H_0$ can be confirmed is $n=100$ in favor of the default
+configuration.
+It is hard to tell whether this is just a coincidence or there is a hidden pattern behind this instance size that
+makes the default hyperparameters produce better results.
+Bottom line is that tuning hasn't improved the parameters that were chosen by hand so there is no clear dominance of the
+tuned variant, although it starts slightly outperforming the default one for instance sizes 500 and 1000.
+The most possible explanation for that is limited tuning runtime due to high computational demand.
+The fine-tuning with Optuna was executed over 50 trials (combinations of randomly sampled parameters) which is probably
+not enough to learn patterns in large neighborhoods.
+Another limitation is the timeout that was set to 60 seconds and limited the ALNS exploration procedure in time for both
+variants.
+Given more time and resources it would be interesting to examine whether larger timeouts and permitted iterations
+let the ALNS algorithm improve the results significantly.
+Based on this comparison it can be assumed that any trends derived in the previous section were rather coincidental
+than consistent.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{ALNS-Default_vs_ALNS-Tuned_50-100-200-500-1000_20260118_152204}
+    \caption{ALNS Default vs ALNS Tuned: Objective Value Comparison Across Instance Sizes}
+    \label{fig:alns_default_vs_tuned_comparison}
+\end{figure}
+
 \subsection{Simulated Annealing Tuning Results}
 \label{subsec:sa_tuning_results}
-% Present tuning results for second algorithm
 Since tuning for the first assignment was done manually and with limited number of configurations I decided to
 fine-tune the simulated annealing solution using Optuna.
 First, the improved greedy construction was used as the initialization step of simulated annealing to help it start
@@ -878,27 +914,6 @@ may matter less than for medium-sized problems where ALNS's superior exploration
     \includegraphics[width=1\linewidth]{ALNS-Tuned_vs_SA-Tuned_distributions_50-100-200-500-1000_20260118_121119}
     \caption{Distribution of Objective Value Differences (SA - ALNS) Across Instance Sizes}
     \label{fig:sa_vs_alns_histogram}
-\end{figure}
-
-\subsection{Impact of Parameter Tuning: ALNS Default vs ALNS Tuned}
-
-To quantify the value of automated parameter tuning, this experiment compares ALNS using default parameters against
-ALNS with Optuna-tuned instance-size-specific parameters.
-Both variants use identical destroy and repair operators, initial construction heuristic
-(\texttt{FlexiblePickupAndDropoffConstructionHeuristic}), and time budgets (30s for n=50, 60s for larger instances).
-The only difference is the parameter configuration: default values from Table~\ref{tab:tuned_params_n50} versus
-tuned values from Section~\ref{subsec:alns_tuning_results}.
-
-Figure~\ref{fig:alns_default_vs_tuned_comparison} presents the comparison across all instance sizes.
-TODO: Analyze the objective value improvements, statistical significance (Wilcoxon test results), and trends across
-instance sizes. Discuss whether tuning benefits are consistent or vary by instance size. Consider whether the
-computational investment in tuning (50 trials × 5 instances × time budget) is justified by the improvement margin.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1\linewidth]{ALNS-Default_vs_ALNS-Tuned_comparison_placeholder}
-    \caption{ALNS Default vs ALNS Tuned: Objective Value Comparison Across Instance Sizes}
-    \label{fig:alns_default_vs_tuned_comparison}
 \end{figure}
 
 \section{Reflection}
