@@ -1,0 +1,14 @@
+{
+  "instance_size": 200,
+  "n_training_instances": 5,
+  "n_trials": 50,
+  "time_budget": 60.0,
+  "best_objective": 13262.285946999851,
+  "best_params": {
+    "initial_temp": 39.68502085761004,
+    "cooling_rate": 0.9600274025868145,
+    "equilibrium_iter": 163,
+    "rcl_length": 2
+  },
+  "timestamp": "20260118_012703"
+}

@@ -1,9 +1,6 @@
 from pathlib import Path
 
 from src.solution import SCFPDPSolution
-from src.algorithms.construction_heuristics import FlexiblePickupAndDropoffConstructionHeuristic
-from src.algorithms.alns.alns import ALNS
-from src.algorithms.alns.config import ALNSConfig
 from src.algorithms.sa.sa import SCFPDPSA
 from src.algorithms.sa.config import SAConfig
 from src.neighborhoods import RelocateNeighborhood
@@ -12,39 +9,9 @@ from src.experiments.algorithm_comparison import (
     compare_algorithms_across_sizes,
     plot_comparison_results, plot_distribution_histograms
 )
+from src.experiments.alns_parameter_comparison import TunedALNSWrapper
 from src.experiments.construction_heuristics import InstanceType
 from src.utils import find_project_root
-
-
-class TunedALNSWrapper:
-    """ALNS wrapper that dynamically loads tuned config based on instance size."""
-
-    def __init__(self, solution: SCFPDPSolution, tuning_dir: Path = None, max_time_seconds: float = None):
-        self.solution = solution
-        instance_size = solution.inst.n
-
-        # Load tuned parameters
-        override_params = {}
-        if tuning_dir is not None:
-            override_params['tuning_dir'] = tuning_dir
-        if max_time_seconds is not None:
-            override_params['max_time_seconds'] = max_time_seconds
-
-        try:
-            self.config = ALNSConfig.from_tuned_params(instance_size=instance_size, **override_params)
-        except FileNotFoundError as e:
-            print(f"\n[TunedALNSWrapper] Error: {e}")
-            raise
-
-    def construct(self):
-        """Run construction heuristic + ALNS and update solution in place."""
-        constructor = FlexiblePickupAndDropoffConstructionHeuristic(self.solution)
-        constructor.construct()
-
-        alns = ALNS(self.solution, config=self.config)
-        best_solution = alns.run()
-
-        self.solution.copy_from(best_solution)
 
 
 class TunedSAWrapper:
@@ -108,23 +75,7 @@ def compare_sa_vs_alns(
     if sa_tuning_dir is None:
         sa_tuning_dir = project_root / "src" / "algorithms" / "sa" / "tuning"
 
-    # Check if tuned configs exist for all sizes
-    missing_configs = []
-    for size in instance_sizes:
-        alns_config = alns_tuning_dir / f"tuned_params_n{size}.json"
-        sa_config = sa_tuning_dir / f"tuned_params_n{size}.json"
-
-        if not alns_config.exists():
-            missing_configs.append(f"ALNS config for n={size}: {alns_config}")
-        if not sa_config.exists():
-            missing_configs.append(f"SA config for n={size}: {sa_config}")
-
-    if missing_configs:
-        print(f"\nWARNING: Missing tuned parameters:")
-        for config in missing_configs:
-            print(f"  - {config}")
-        print("\nRun alns_tuning.py and sa_tuning.py first to generate tuned parameters.")
-        return None
+    # Note: Config loaders will automatically fallback to nearest smaller size if exact match not found
 
     # Create algorithm configs
     algorithm1_config = AlgorithmConfig(
@@ -157,7 +108,7 @@ def main():
     print("="*80)
 
     # Configuration
-    instance_sizes = ["50"]  # Add more as tuning completes: ["50", "100", "200"]
+    instance_sizes = ["50", "100", "200", "500", "1000"]
     instance_type = InstanceType.TEST
     timeout = 60.0  # Match tuning time budget
 

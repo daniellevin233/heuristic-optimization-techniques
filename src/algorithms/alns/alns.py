@@ -136,8 +136,8 @@ class ALNS:
             )
 
         # Final log
-        elapsed = time.time() - self.start_time
-        print(f"\nALNS completed: Best objective = {self.best_objective:.2f} in {elapsed:.1f}s")
+        # elapsed = time.time() - self.start_time
+        # print(f"\nALNS completed: Best objective = {self.best_objective:.2f} in {elapsed:.1f}s")
         return self.best_solution
 
     def _select_operator(

@@ -23,7 +23,7 @@ from src.instance import SCFPDPInstance
 from src.solution import SCFPDPSolution
 from src.algorithms.construction_heuristics import GreedyConstructionHeuristic, RandomizedConstructionHeuristic
 from src.algorithms.beam_search import SCFPDPBeamSearch
-from src.algorithms.sa import SCFPDPSA
+from src.algorithms.sa.sa import SCFPDPSA
 from src.neighborhoods import RelocateNeighborhood
 from src.experiments.construction_heuristics import InstanceType
 from src.utils import find_project_root
@@ -393,13 +393,21 @@ def plot_distribution_histograms(summary: ExperimentSummary, save_plot: bool = F
     alg1_name = summary.comparison_results[0].algorithm1_name
     alg2_name = summary.comparison_results[0].algorithm2_name
 
-    # Create subplots (one per instance size)
-    fig, axes = plt.subplots(1, n_sizes, figsize=(6 * n_sizes, 5))
+    # Create tiled grid layout (better for 5+ subplots)
+    # Calculate grid dimensions: aim for roughly square layout
+    n_cols = 2 if n_sizes > 4 else min(n_sizes, 2)
+    n_rows = (n_sizes + n_cols - 1) // n_cols  # Ceiling division
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(7 * n_cols, 5 * n_rows))
+
+    # Flatten axes array for easier iteration
     if n_sizes == 1:
-        axes = [axes]  # Make iterable
+        axes = [axes]
+    else:
+        axes = axes.flatten()
 
     fig.suptitle(f'Distribution of Objective Differences: {alg1_name} - {alg2_name}',
-                 fontsize=14, fontweight='bold')
+                 fontsize=16, fontweight='bold', y=0.995)
 
     for ax, comp in zip(axes, summary.comparison_results):
         if comp.percent_diffs_array is None:
@@ -420,13 +428,21 @@ def plot_distribution_histograms(summary: ExperimentSummary, save_plot: bool = F
         ax.plot(x, y, 'r-', linewidth=2, label=f'Normal fit\n(μ={mu:.2f}, σ={std:.2f})')
 
         # Add vertical line at mean
-        ax.axvline(mu, color='red', linestyle='--', linewidth=1.5, alpha=0.5)
+        ax.axvline(mu, color='red', linestyle='--', linewidth=1.5, alpha=0.5, label=f'Mean: {mu:.2f}%')
+
+        # Add vertical line at median (robust to outliers)
+        median = np.median(diffs)
+        ax.axvline(median, color='green', linestyle='-.', linewidth=1.5, alpha=0.7, label=f'Median: {median:.2f}%')
 
         ax.set_xlabel('% Difference', fontsize=11)
         ax.set_ylabel('Density', fontsize=11)
         ax.set_title(f'n={comp.instance_size}', fontsize=12, fontweight='bold')
         ax.legend(fontsize=9)
         ax.grid(True, alpha=0.3)
+
+    # Hide empty subplots if grid has more spaces than plots
+    for idx in range(n_sizes, len(axes)):
+        axes[idx].axis('off')
 
     plt.tight_layout()
 
@@ -459,7 +475,6 @@ def plot_comparison_results(summary: ExperimentSummary, save_plot: bool = False)
 
     # Extract data
     instance_sizes = [comp.instance_size for comp in summary.comparison_results]
-    percent_diffs_means = [comp.mean_percent_diff for comp in summary.comparison_results]
     alg1_wins = [comp.algorithm1_wins for comp in summary.comparison_results]
     alg2_wins = [comp.algorithm2_wins for comp in summary.comparison_results]
     ties = [comp.ties for comp in summary.comparison_results]

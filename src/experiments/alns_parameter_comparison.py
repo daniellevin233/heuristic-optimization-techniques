@@ -1,5 +1,4 @@
 from pathlib import Path
-import json
 
 from src.solution import SCFPDPSolution
 from src.algorithms.construction_heuristics import FlexiblePickupAndDropoffConstructionHeuristic
@@ -45,6 +44,8 @@ class TunedALNSWrapper(ALNSWrapper):
         if max_time_seconds is not None:
             override_params['max_time_seconds'] = max_time_seconds
 
+        override_params['log_interval'] = 100000
+
         try:
             config = ALNSConfig.from_tuned_params(instance_size=instance_size, **override_params)
         except FileNotFoundError as e:
@@ -67,16 +68,8 @@ def compare_default_vs_tuned(
         # Match the default location in ALNSConfig.from_tuned_params()
         tuning_dir = project_root / "src" / "algorithms" / "alns" / "tuning"
 
-    for size in instance_sizes:
-        json_file = tuning_dir / f"tuned_params_n{size}.json"
-        if not json_file.exists():
-            print(f"\nWARNING: Tuned parameters not found for size {size}")
-            print(f"Expected: {json_file}")
-            print("Run alns_tuning.py first to generate tuned parameters.")
-            return None
-
     # Create algorithm configs
-    default_config = ALNSConfig(max_time_seconds=alns_timeout)
+    default_config = ALNSConfig(max_time_seconds=alns_timeout, log_interval=100000)
 
     algorithm1_config = AlgorithmConfig(
         name="ALNS-Default",
@@ -108,7 +101,7 @@ def main():
     print("="*80)
 
     # Configuration
-    instance_sizes = ["50"]  # Add more as tuning completes: ["50", "100", "200"]
+    instance_sizes = ["50", "100", "200", "500", "1000"]
     instance_type = InstanceType.TEST
     alns_timeout = 60.0  # Match tuning time budget
 

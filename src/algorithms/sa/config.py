@@ -42,10 +42,7 @@ class SAConfig:
         # Try exact size first
         config_file = tuning_dir / f"tuned_params_n{instance_size}.json"
 
-        if config_file.exists():
-            print(f"[SA Config] Loading tuned parameters for n={instance_size}")
-            print(f"[SA Config] Config file: {config_file}")
-        else:
+        if not config_file.exists():
             # Find all available tuned configs
             available_configs = sorted(tuning_dir.glob("tuned_params_n*.json"))
 
@@ -70,9 +67,9 @@ class SAConfig:
             if available_sizes:
                 # Use largest size smaller than target
                 fallback_size, config_file = max(available_sizes, key=lambda x: x[0])
-                print(f"[SA Config] No tuned parameters found for n={instance_size}")
-                print(f"[SA Config] Falling back to n={fallback_size} (next smaller available size)")
-                print(f"[SA Config] Config file: {config_file}")
+                # print(f"[SA Config] No tuned parameters found for n={instance_size}")
+                # print(f"[SA Config] Falling back to n={fallback_size} (next smaller available size)")
+                # print(f"[SA Config] Config file: {config_file}")
             else:
                 raise FileNotFoundError(
                     f"No tuned parameters found for n={instance_size} or any smaller size in {tuning_dir}"
@@ -93,5 +90,5 @@ class SAConfig:
             **override_params
         )
 
-        print(f"[SA Config] Loaded tuned parameters successfully")
+        # print(f"[SA Config] Loaded tuned parameters successfully")
         return config

@@ -438,6 +438,7 @@ Parameter & Type & Search Range & Default \\
 \end{table}
 
 \subsection{ALNS Tuning Results}
+\label{subsec:alns_tuning_results}
 
 The tuning process explored 50 different parameter configurations for each instance size, using TPE's Bayesian
 optimization to navigate the search space.
@@ -479,17 +480,300 @@ rather than incremental gains.
 The removal percentage range widened slightly (9.4\%-53\% vs 10\%-40\%), giving operators more flexibility in neighborhood size.
 Overall, the tuned configuration favors faster adaptation, more aggressive exploration early on, and stronger
 differentiation of operator performance compared to conservative defaults.
-TODO
-% Fill in tuning configurations for the rest of the instances sizes, maybe plot tendencies of different params per instance size
+
+\subsubsection{Tuning Results Across Instance Sizes}
+
+Table~\ref{tab:tuned_params_n100}, Table~\ref{tab:tuned_params_n200}, and Table~\ref{tab:tuned_params_n500} present 
+the tuned parameters for instance sizes 100, 200, and 500 respectively.
+
+\begin{table}[H]
+\centering
+\caption{Tuned ALNS Parameters for Instance Size n=100}
+\label{tab:tuned_params_n100}
+\begin{tabular}{l l l l}
+\toprule
+Parameter & Default & Tuned Value & Change \\
+\midrule
+\texttt{weight\_update\_period} & 100 & 407 & +307\% \\
+\texttt{reaction\_factor} ($\gamma$) & 0.1 & 0.318 & +218\% \\
+\texttt{min\_removal\_percentage} & 0.1 & 0.118 & +18\% \\
+\texttt{max\_removal\_percentage} & 0.4 & 0.437 & +9\% \\
+\texttt{initial\_temperature} & 100.0 & 267.0 & +167\% \\
+\texttt{cooling\_rate} & 0.99 & 0.975 & -1.5\% \\
+\texttt{score\_new\_best} & 10.0 & 9.97 & -0.3\% \\
+\texttt{score\_accepted} & 1.0 & 0.776 & -22\% \\
+\midrule
+\textbf{Best Objective} & \multicolumn{3}{l}{4384.6} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Tuned ALNS Parameters for Instance Size n=200}
+\label{tab:tuned_params_n200}
+\begin{tabular}{l l l l}
+\toprule
+Parameter & Default & Tuned Value & Change \\
+\midrule
+\texttt{weight\_update\_period} & 100 & 97 & -3\% \\
+\texttt{reaction\_factor} ($\gamma$) & 0.1 & 0.284 & +184\% \\
+\texttt{min\_removal\_percentage} & 0.1 & 0.073 & -27\% \\
+\texttt{max\_removal\_percentage} & 0.4 & 0.362 & -10\% \\
+\texttt{initial\_temperature} & 100.0 & 422.5 & +323\% \\
+\texttt{cooling\_rate} & 0.99 & 0.976 & -1.4\% \\
+\texttt{score\_new\_best} & 10.0 & 14.53 & +45\% \\
+\texttt{score\_accepted} & 1.0 & 0.847 & -15\% \\
+\midrule
+\textbf{Best Objective} & \multicolumn{3}{l}{11194.5} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Tuned ALNS Parameters for Instance Size n=500}
+\label{tab:tuned_params_n500}
+\begin{tabular}{l l l l}
+\toprule
+Parameter & Default & Tuned Value & Change \\
+\midrule
+\texttt{weight\_update\_period} & 100 & 55 & -45\% \\
+\texttt{reaction\_factor} ($\gamma$) & 0.1 & 0.210 & +110\% \\
+\texttt{min\_removal\_percentage} & 0.1 & 0.065 & -35\% \\
+\texttt{max\_removal\_percentage} & 0.4 & 0.511 & +28\% \\
+\texttt{initial\_temperature} & 100.0 & 178.8 & +79\% \\
+\texttt{cooling\_rate} & 0.99 & 0.999 & +0.9\% \\
+\texttt{score\_new\_best} & 10.0 & 16.29 & +63\% \\
+\texttt{score\_accepted} & 1.0 & 1.06 & +6\% \\
+\midrule
+\textbf{Best Objective} & \multicolumn{3}{l}{42939.1} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Comparing tuned parameters across instance sizes reveals certain trends.
+The \texttt{weight\_update\_period} decreases as instances grow (275 → 407 → 97 → 55), suggesting
+larger instances benefit from more frequent weight adjustments to adapt quickly to the expanding search space.
+The \texttt{reaction\_factor} consistently decreases with instance size (0.478 → 0.318 → 0.284 → 0.210), 
+indicating slower, more conservative adaptation becomes preferable as problem complexity increases or alternatively
+being a reflection of the decreasing \texttt{weight\_update\_period} which balances out slower adaptation.
+\texttt{cooling\_rate} approaches 1.0 for larger instances (0.956 → 0.975 → 0.976 → 0.999),
+creating much slower temperature decline—for n=500, the higher cooling rate effectively maintains high temperature
+throughout the search, prioritizing exploration over exploitation which makes more sense for larger instances with
+larger search space.
+The \texttt{score\_new\_best} reward increases with instance size (13.4 → 9.97 → 14.53 → 16.29), amplifying the 
+incentive for operators discovering global improvements in larger search spaces.
+Figure~\ref{fig:alns_param_trends} visualizes these parameter evolution trends across instance sizes.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{tuning/alns_tuning_trends_20260118_014142}
+    \caption{Evolution of Tuned ALNS Parameters Across Instance Sizes}
+    \label{fig:alns_param_trends}
+\end{figure}
+
+\subsubsection{Optimization Convergence and Parameter Importance}
+
+The following figures visualize the Optuna optimization process across different instance sizes, showing 
+how the objective value improves over trials and which parameters have the most significant impact on solution quality.
+
+\medskip
+\noindent
+\textbf{Instance Size n=100:}
+
+Figure~\ref{fig:alns_n100_convergence} shows the optimization convergence over 50 trials for instance size 100.
+The Bayesian optimization finds several configurations that improve the objective value, though plateaus appear 
+throughout the 50 trials.
+Worse objectives keep occurring as tuning progresses, suggesting Optuna hasn't converged to the best configuration space
+ within 50 trials.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{tuning/alns_tuning_n100_trials50_budget60s_convergence}
+    \caption{ALNS Tuning Convergence for n=100 (50 trials, 60s budget)}
+    \label{fig:alns_n100_convergence}
+\end{figure}
+
+Figure~\ref{fig:alns_n100_param_importance} displays parameter importance, indicating which parameters most strongly
+influence objective value for this instance size.
+\texttt{weight\_update\_period} dominates parameter importance with 0.49.
+This parameter doesn't show consistent importance across instance sizes, suggesting Optuna spotted a strong correlation 
+early in this run and explored it further with marginal improvements.
+It's expected that \texttt{weight\_update\_period} influences ALNS strongly since it controls how often operator 
+weights are adjusted.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{tuning/alns_tuning_n100_trials50_budget60s_parameter_importance}
+    \caption{ALNS Parameter Importance for n=100}
+    \label{fig:alns_n100_param_importance}
+\end{figure}
+
+\medskip
+\noindent
+\textbf{Instance Size n=200:}
+
+Figure~\ref{fig:alns_n200_convergence} shows the optimization convergence for instance size 200.
+The initial plateau is significant for n=200, meaning Optuna cannot force ALNS to escape local optima through parameter 
+sampling alone.
+A slight improvement appears toward the end but nothing substantial. 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{tuning/alns_tuning_n200_trials50_budget60s_convergence}
+    \caption{ALNS Tuning Convergence for n=200 (50 trials, 60s budget)}
+    \label{fig:alns_n200_convergence}
+\end{figure}
+
+Figure~\ref{fig:alns_n200_param_importance} shows parameter importance for instance size 200.
+Cooling rate accounts for 0.33 of the importance, but overall the parameters are distributed relatively evenly,
+suggesting Optuna hasn't identified dominant parameters for this size.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{tuning/alns_tuning_n200_trials50_budget60s_parameter_importance}
+    \caption{ALNS Parameter Importance for n=200}
+    \label{fig:alns_n200_param_importance}
+\end{figure}
+
+\medskip
+\noindent
+\textbf{Instance Size n=500:}
+
+Figure~\ref{fig:alns_n500_convergence} shows the optimization convergence for instance size 500.
+TPE finds improvements despite the relatively low trial count (50), with notable gains around trials 5 and 23.
+Without a clear progression pattern, Optuna appears not to have learned which configurations work best.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{tuning/alns_tuning_n500_trials50_budget60s_convergence}
+    \caption{ALNS Tuning Convergence for n=500 (50 trials, 60s budget)}
+    \label{fig:alns_n500_convergence}
+\end{figure}
+
+Figure~\ref{fig:alns_n500_param_importance} shows parameter importance for instance size 500.
+Parameter importance remains fairly distributed, though cooling rate gains prominence.
+Larger search spaces likely benefit from slower cooling to allow thorough exploration.  
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{tuning/alns_tuning_n500_trials50_budget60s_parameter_importance}
+    \caption{ALNS Parameter Importance for n=500}
+    \label{fig:alns_n500_param_importance}
+\end{figure}
+
+\medskip
+\noindent
+\textbf{Instance Size n=1000:}
+The tuning process has not converged within 2 hours so I had to interrupt it.
+In theory the runtime is defined by the timeout, so this was not supposed to happen but after looking at the
+dashboards provided by Optuna it seemed like the process got completely stuck which could happen due to deadlock in the
+sqlite database used for storing and visualizing results, as this database is not very good at handling concurrency.
+The framework of loading ALNS configs was adjusted to automatically discover the tuned parameters configuration of the
+closest instance size, thus for instance size 1000 the parameters tuned for instance size 500 will be used.
 
 \subsection{Simulated Annealing Tuning Results}
+\label{subsec:sa_tuning_results}
 % Present tuning results for second algorithm
 Since tuning for the first assignment was done manually and with limited number of configurations I decided to
 fine-tune the simulated annealing solution using Optuna.
 First, the improved greedy construction was used as the initialization step of simulated annealing to help it start
 from a better solution.
-Then, the following parameters and ranges were fine-tuned on instances of sizes 50, 100, 200, 500 and 1000.
-TODO
+Then, the following parameters and ranges were fine-tuned on instances of sizes 50, 100, 200, 500 and 1000:
+
+\begin{table}[H]
+\centering
+\caption{SA Tuning Parameter Search Space}
+\begin{tabular}{l l l l}
+\toprule
+Parameter & Type & Search Range & Default \\
+\midrule
+\texttt{initial\_temperature} & Float & [10.0, 500.0] & 100.0 \\
+\texttt{cooling\_rate} & Float & [0.85, 0.9999] & 0.95 \\
+\texttt{equilibrium\_iterations} & Integer & [100, 1000] & 500 \\
+\texttt{rcl\_length} & Integer & [1, 20] & 3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Similar to ALNS tuning, Optuna was executed with 50 trials using TPE sampler with seed 42 for reproducibility.
+The objective function minimized the average objective value across 5 training instances per size.
+Time budgets matched ALNS: 30 seconds for n=50 instances and 60 seconds for larger sizes (n=100, 200, 500, 1000).
+
+\subsubsection{Optimization Convergence and Parameter Importance}
+
+The following figures visualize the Optuna optimization process for Simulated Annealing across different instance sizes.
+
+\medskip
+\noindent
+\textbf{Instance Size n=100:}
+
+Figure~\ref{fig:sa_n100_convergence} shows the optimization convergence over 50 trials for instance size 100.
+The Bayesian optimization discovers improvements throughout the trials, with the best objective appearing late.
+However, there is a plateau between $\sim$6-32 trials and only after that the fine-tuning procedure seems to have
+found a tendency in the hyper-paremeters consistently improving the objective value in the last 10 trials.  
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{tuning/sa_tuning_n100_trials50_budget60s_convergence}
+    \caption{SA Tuning Convergence for n=100 (50 trials, 60s budget)}
+    \label{fig:sa_n100_convergence}
+\end{figure}
+
+Figure~\ref{fig:sa_n100_param_importance} displays parameter importance for instance size 100.
+The outstanding parameter is \texttt{cooling\_rate} weighing 0.66.
+The initial value of \texttt{cooling\_rate} was 0.85 and the final one after 50 trials is 0.90. 
+This is an indication that even for small instance size slower cooling is beneficial.
+However, initial temperature has dropped from initial 474 to final 147 which can explain the strong correlation 
+between initial temperature and cooling rate that the Optuna was exploring instead of fixing them at certain ratio 
+and trying to explore the combined effect with other parameters.
+To verify this hypothesis I extracted another visualization (see Figure~\ref{fig:sa_n100_param_correlation}) that 
+captures correlation between pairs of parameters in respect to the objective value.
+Darker blue represents better objective value and we can see a strip along $cooling\_rate = 0.9$.
+The surprising part here is that it seems that initial temperature has low impact on final result for this fixed 
+cooling rate. 
+One possible explanation could be that the neighborhood move is not very diverse so that larger or lower values of 
+temperature throughout the execution do not result in significant variance of the objective value. 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{tuning/sa_tuning_n100_trials50_budget60s_parameters_importance}
+    \caption{SA Parameter Importance for n=100}
+    \label{fig:sa_n100_param_importance}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{tuning/sa_tuning_n100_trials50_budget60s_parameters_correlation}
+    \caption{SA Parameter Correlation for n=100}
+    \label{fig:sa_n100_param_correlation}
+\end{figure}
+
+\textbf{Instance Size n=500:}
+
+Figure~\ref{fig:sa_n500_convergence} shows the optimization convergence for instance size 500.
+There is a significant drop (almost 5000) of objective value in the beginning around 2nd trial, after which the objective value 
+stays more or less the same indicating a local optima that cannot be escaped. 
+The possible explanation is that the underlying randomized construction that managed to produce good results at this 
+round.
+This is confirmed by Figure~\ref{fig:sa_n500_param_importance} which shows that the \texttt{rcl\_length} was identified 
+as the most impactful parameter (0.65).
+This parameter is the only one that affect the randomized construction and it is isolated from the rest. 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{tuning/sa_tuning_n500_trials50_budget60s_convergence}
+    \caption{SA Tuning Convergence for n=500 (50 trials, 60s budget)}
+    \label{fig:sa_n500_convergence}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{tuning/sa_tuning_n500_trials50_budget60s_parameters_importance}
+    \caption{SA Parameter Importance for n=500}
+    \label{fig:sa_n500_param_importance}
+\end{figure}
 
 \subsection{Instance Size Scalability}
 
@@ -538,38 +822,85 @@ performance differences stem from the metaheuristic search rather than initial s
 Time budgets were set consistently with the tuning phase: 30 seconds for n=50 instances and 60 seconds for all
 larger instances (n=100, 200, 500, 1000).
 
-Each algorithm uses its instance-size-specific tuned parameters obtained from Optuna optimization (Section~\ref{sec:alns_tuning_results} for ALNS and Section~\ref{sec:sa_tuning_results} for SA), allowing fair comparison between optimally configured approaches rather than default parameter settings.
+Each algorithm uses its instance-size-specific tuned parameters obtained from Optuna optimization
+(Section~\ref{subsec:alns_tuning_results} for ALNS and Section~\ref{subsec:sa_tuning_results} for SA),
+allowing fair comparison between optimally configured approaches rather than default parameter settings.
 
 \subsection{Comparison: Best from Assignment 1 vs. Best from Assignment 2}
-TODO
-Figure~\ref{fig:sa_vs_alns_comparison} presents the comprehensive comparison between tuned Simulated Annealing and tuned ALNS across all instance sizes.
+Figure~\ref{fig:sa_vs_alns_comparison} presents the comprehensive comparison between tuned Simulated Annealing and
+tuned ALNS across all instance sizes.
+The ALNS clearly dominates with total average improvement of 10\% across all evaluated instance sizes.
+This result is not surprising given that the neighborhood structure that ALNS is exploring is much richer (larger) than
+that of SA.
+It could be interesting to further investigate different neighborhoods for the Simulated Annealing and maybe enhance it
+by choosing them from a distribution, although this is similar to what ALNS is doing.
+The Wilcoxon test shows clear domination of ALNS for all instance size even the ones with outliers where SA managed
+to find a much better local optima.
+It is worth noting that for larger instances (500 and 1000) the improvement of ALNS over SA is not as pronounced as for
+smaller instances.
+This could be explained by limited computational power, ALNS needs linearly more time and iterations to efficiently
+explore the large neighborhoods, while for SA there is no learning process meaning it can find decent results
+in fixed number of steps regardless of the instance size.
 
 \begin{figure}[H]
     \centering
-%    \includegraphics[width=1\linewidth]{SA_vs_ALNS_50-100-200-500-1000_comparison}
-    \caption{Tuned SA vs Tuned ALNS: Objective Value Comparison Across Instance Sizes}
+    \includegraphics[width=1\linewidth]{ALNS-Tuned_vs_SA-Tuned_50-100-200-500-1000_20260118_121120}
+    \caption{Tuned ALNS vs Tuned SA: Objective Value Comparison Across Instance Sizes}
     \label{fig:sa_vs_alns_comparison}
 \end{figure}
 
-TODO
-% Analyze the comparison results, Wilcoxon test p-values for each instance size, wins/losses/ties
-
 To better understand the distribution of performance differences and validate the applicability of the Wilcoxon
-signed-rank test, Figure~\ref{fig:sa_vs_alns_histogram} shows histograms of objective value differences (SA minus ALNS) for each instance size.
+signed-rank test, Figure~\ref{fig:sa_vs_alns_histogram} shows histograms of objective value differences (SA minus ALNS)
+for each instance size.
+We can see that the distribution of differences is not normal for most of the instance sizes.
+In most cases there are long right tails and presence of outliers, making parametric tests like t-test inappropriate.
+The Wilcoxon signed-rank test is correctly chosen as it makes no distributional assumptions and is robust to outliers.
+Interestingly, $n=500$ shows the most symmetric, almost normal distribution of differences, suggesting that at this
+scale the patterns of the algorithm behavior are the most predictable for both approaches.
+
+While ALNS dominates on average, SA occasionally finds solutions comparable to or even better than ALNS on specific
+instances.
+These outliers indicate that SA's performance variance is higher—it sometimes gets ``lucky'' with neighborhoods moves
+ but lacks ALNS's systematic exploration capability to consistently achieve high-quality solutions.
+This means ALNS offers more predictable performance and is more generalizable.
+
+\textbf{Instance Size Effects on Performance Gap:}
+The distribution characteristics shift as instance size grows.
+For smaller instances (n=50, 100), the performance gap is larger and more variable.
+As instances grow to n=500 and n=1000, the distributions become more concentrated around smaller differences,
+suggesting that the relative advantage of ALNS's rich neighborhood structure diminishes when computational budget
+becomes the limiting factor.
+This convergence implies that for very large instances under tight time constraints, the choice between SA and ALNS
+may matter less than for medium-sized problems where ALNS's superior exploration can be fully leveraged.
 
 \begin{figure}[H]
     \centering
-%    \includegraphics[width=1\linewidth]{SA_vs_ALNS_objective_differences_histogram}
+    \includegraphics[width=1\linewidth]{ALNS-Tuned_vs_SA-Tuned_distributions_50-100-200-500-1000_20260118_121119}
     \caption{Distribution of Objective Value Differences (SA - ALNS) Across Instance Sizes}
     \label{fig:sa_vs_alns_histogram}
 \end{figure}
 
-TODO
-% Discuss the distribution characteristics and what they reveal about algorithm performance consistency
+\subsection{Impact of Parameter Tuning: ALNS Default vs ALNS Tuned}
 
-% ============================================================
-% 9. Conclusion
-% ============================================================
+To quantify the value of automated parameter tuning, this experiment compares ALNS using default parameters against
+ALNS with Optuna-tuned instance-size-specific parameters.
+Both variants use identical destroy and repair operators, initial construction heuristic
+(\texttt{FlexiblePickupAndDropoffConstructionHeuristic}), and time budgets (30s for n=50, 60s for larger instances).
+The only difference is the parameter configuration: default values from Table~\ref{tab:tuned_params_n50} versus
+tuned values from Section~\ref{subsec:alns_tuning_results}.
+
+Figure~\ref{fig:alns_default_vs_tuned_comparison} presents the comparison across all instance sizes.
+TODO: Analyze the objective value improvements, statistical significance (Wilcoxon test results), and trends across
+instance sizes. Discuss whether tuning benefits are consistent or vary by instance size. Consider whether the
+computational investment in tuning (50 trials × 5 instances × time budget) is justified by the improvement margin.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{ALNS-Default_vs_ALNS-Tuned_comparison_placeholder}
+    \caption{ALNS Default vs ALNS Tuned: Objective Value Comparison Across Instance Sizes}
+    \label{fig:alns_default_vs_tuned_comparison}
+\end{figure}
+
 \section{Reflection}
 
 \subsection{Key Learnings}

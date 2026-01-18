@@ -321,7 +321,7 @@ if __name__ == "__main__":
     plot_tuning_trends(
         algorithm="ALNS",
         instance_sizes=[50, 100, 200, 500],
-        save_plot=False,
+        save_plot=True,
     )
 
     # print("\n" + "=" * 80)

@@ -38,7 +38,7 @@ class ALNSConfig:
     # score_rejected is implicitly 0.0
 
     # ===== LOGGING =====
-    log_interval: int = 100  # Print progress every N iterations
+    log_interval: int = 1000  # Print progress every N iterations
 
     @staticmethod
     def from_tuned_params(
@@ -60,10 +60,7 @@ class ALNSConfig:
         # Try exact size first
         config_file = tuning_dir / f"tuned_params_n{instance_size}.json"
 
-        if config_file.exists():
-            print(f"[ALNS Config] Loading tuned parameters for n={instance_size}")
-            print(f"[ALNS Config] Config file: {config_file}")
-        else:
+        if not config_file.exists():
             # Find all available tuned configs
             available_configs = sorted(tuning_dir.glob("tuned_params_n*.json"))
 
@@ -89,9 +86,9 @@ class ALNSConfig:
             if available_sizes:
                 # Use largest size smaller than target
                 fallback_size, config_file = max(available_sizes, key=lambda x: x[0])
-                print(f"[ALNS Config] No tuned parameters found for n={instance_size}")
-                print(f"[ALNS Config] Falling back to n={fallback_size} (next smaller available size)")
-                print(f"[ALNS Config] Config file: {config_file}")
+                # print(f"[ALNS Config] No tuned parameters found for n={instance_size}")
+                # print(f"[ALNS Config] Falling back to n={fallback_size} (next smaller available size)")
+                # print(f"[ALNS Config] Config file: {config_file}")
             else:
                 raise FileNotFoundError(
                     f"No tuned parameters found for n={instance_size} or any smaller size in {tuning_dir}"
@@ -116,5 +113,5 @@ class ALNSConfig:
             **override_params
         )
 
-        print(f"[ALNS Config] Loaded tuned parameters successfully")
+        # print(f"[ALNS Config] Loaded tuned parameters successfully")
         return config
