@@ -11,5 +11,5 @@ zip -r submission_assignment_1_DanielLevin_KartikArya.zip ./ -x "Supplementary\ 
 ```
 
 ```shell
-zip -r submission_assignment_2_DanielLevin.zip ./ -x "Supplementary\ Material/*" -x "venv/*" -x "*.lprof" -x "instances/*" -x "*.zip" -x ".git/*" -x ".idea/*" -x "*__pycache__/*" -x "out/*" -x "exercises/*" -x "tuning_lecture.txt"
+zip -r submission_assignment_2_DanielLevin.zip ./ -x "SupplementaryMaterial/*" -x "venv/*" -x "*.lprof" -x "instances/*" -x "*.zip" -x ".git/*" -x ".idea/*" -x "*__pycache__/*" -x "out/*" -x "exercises/*" -x "tuning_lecture.txt" -x ".claude/*"
 ```
