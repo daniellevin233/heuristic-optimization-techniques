@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
 import random
+from enum import Enum
 
 from src.algorithms.construction_heuristics import FlexiblePickupAndDropoffConstructionHeuristic
 from src.solution import SCFPDPSolution
@@ -334,3 +335,43 @@ class ObjectiveAwareRepairOperator(RepairOperator):
                 )
 
         return destroyed_solution.solution
+
+
+# ===== OPERATOR ENUMS AND REGISTRY =====
+
+class DestroyOperatorType(Enum):
+    """Available destroy operators."""
+    RANDOM = "Random"
+    WORST_COST = "WorstCost"
+    LONGEST_ROUTE = "LongestRoute"
+
+
+class RepairOperatorType(Enum):
+    """Available repair operators."""
+    GREEDY = "Greedy"
+    RANDOM_GREEDY = "RandomGreedy"
+    OBJECTIVE_AWARE = "ObjectiveAware"
+
+
+# Registry mapping operator types to their classes
+DESTROY_OPERATOR_REGISTRY = {
+    DestroyOperatorType.RANDOM: RandomRemovalOperator,
+    DestroyOperatorType.WORST_COST: WorstCostRemovalOperator,
+    DestroyOperatorType.LONGEST_ROUTE: LongestRouteRemovalOperator,
+}
+
+REPAIR_OPERATOR_REGISTRY = {
+    RepairOperatorType.GREEDY: GreedyRepairOperator,
+    RepairOperatorType.RANDOM_GREEDY: RandomGreedyRepairOperator,
+    RepairOperatorType.OBJECTIVE_AWARE: ObjectiveAwareRepairOperator,
+}
+
+
+def create_all_destroy_operators(config: ALNSConfig) -> list[DestroyOperator]:
+    """Create instances of all available destroy operators."""
+    return [cls(op_type.value, config) for op_type, cls in DESTROY_OPERATOR_REGISTRY.items()]
+
+
+def create_all_repair_operators(config: ALNSConfig) -> list[RepairOperator]:
+    """Create instances of all available repair operators."""
+    return [cls(op_type.value, config) for op_type, cls in REPAIR_OPERATOR_REGISTRY.items()]

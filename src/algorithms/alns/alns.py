@@ -7,7 +7,12 @@ from src.algorithms.construction_heuristics import FlexiblePickupAndDropoffConst
 from src.instance import SCFPDPInstance
 from src.solution import SCFPDPSolution
 from src.algorithms.alns.config import ALNSConfig
-from src.algorithms.alns.operators import DestroyOperator, RepairOperator, RandomRemovalOperator, WorstCostRemovalOperator, LongestRouteRemovalOperator, GreedyRepairOperator, RandomGreedyRepairOperator, ObjectiveAwareRepairOperator
+from src.algorithms.alns.operators import (
+    DestroyOperator,
+    RepairOperator,
+    create_all_destroy_operators,
+    create_all_repair_operators
+)
 
 
 @dataclass
@@ -32,24 +37,33 @@ class ALNS:
     def __init__(
         self,
         initial_solution: SCFPDPSolution,
-        destroy_operators: list[DestroyOperator],
-        repair_operators: list[RepairOperator],
-        config: ALNSConfig
+        destroy_operators: list[DestroyOperator] = None,
+        repair_operators: list[RepairOperator] = None,
+        config: ALNSConfig = None
     ):
         self.initial_solution = initial_solution
-        self.destroy_operators = destroy_operators
-        self.repair_operators = repair_operators
-        self.config = config
+
+        self.config = config if config is not None else ALNSConfig()
+
+        # Auto-instantiate all operators if not provided
+        self.destroy_operators = (
+            destroy_operators if destroy_operators is not None
+            else create_all_destroy_operators(self.config)
+        )
+        self.repair_operators = (
+            repair_operators if repair_operators is not None
+            else create_all_repair_operators(self.config)
+        )
 
         # Initialize weights (all start at 1.0)
-        self.destroy_weights = {op.name: 1.0 for op in destroy_operators}
-        self.repair_weights = {op.name: 1.0 for op in repair_operators}
+        self.destroy_weights = {op.name: 1.0 for op in self.destroy_operators}
+        self.repair_weights = {op.name: 1.0 for op in self.repair_operators}
 
         # Tracking for weight updates (per period)
-        self.destroy_applications = {op.name: 0 for op in destroy_operators}
-        self.destroy_scores = {op.name: 0.0 for op in destroy_operators}
-        self.repair_applications = {op.name: 0 for op in repair_operators}
-        self.repair_scores = {op.name: 0.0 for op in repair_operators}
+        self.destroy_applications = {op.name: 0 for op in self.destroy_operators}
+        self.destroy_scores = {op.name: 0.0 for op in self.destroy_operators}
+        self.repair_applications = {op.name: 0 for op in self.repair_operators}
+        self.repair_scores = {op.name: 0.0 for op in self.repair_operators}
 
         # Best and current solutions
         self.best_solution = initial_solution.copy()
@@ -58,7 +72,7 @@ class ALNS:
         self.current_objective = self.best_objective
 
         # Simulated Annealing state
-        self.temperature = config.initial_temperature
+        self.temperature = self.config.initial_temperature
 
         # Statistics
         self.statistics: list[ALNSStatistics] = []
@@ -296,46 +310,45 @@ def test_alns_small_instance():
     print(f"Served requests: {len(initial_solution.get_all_served_requests())}/{instance.gamma}")
 
     # Configure ALNS
-    config = ALNSConfig(
-        max_iterations=1000,
-        max_time_seconds=300.0,
-        max_iterations_without_improvement=100,
-        weight_update_period=50,
-        reaction_factor=0.1,
-        min_removal_percentage=0.30,
-        max_removal_percentage=0.50,
-        initial_temperature=50.0,
-        cooling_rate=0.995,
-        score_new_best=10.0,
-        score_accepted=1.0,
-        log_interval=100,
-    )
+    # Option 1: Use tuned parameters (automatically loads best config for instance size)
+    try:
+        config = ALNSConfig.from_tuned_params(
+            instance_size=instance.n,
+            max_time_seconds=300.0,  # Override time limit
+            log_interval=100
+        )
+    except FileNotFoundError as e:
+        print(f"\n[ALNS Config] {e}")
+        print(f"[ALNS Config] Using default parameters instead\n")
+        # Option 2: Use default/manual parameters
+        config = ALNSConfig(
+            max_iterations=1000,
+            max_time_seconds=300.0,
+            max_iterations_without_improvement=100,
+            weight_update_period=50,
+            reaction_factor=0.1,
+            min_removal_percentage=0.30,
+            max_removal_percentage=0.50,
+            initial_temperature=50.0,
+            cooling_rate=0.995,
+            score_new_best=10.0,
+            score_accepted=1.0,
+            log_interval=100,
+        )
 
-    # Create destroy operators
-    destroy_operators = [
-        RandomRemovalOperator("Random", config),
-        WorstCostRemovalOperator("WorstCost", config),
-        LongestRouteRemovalOperator("LongestRoute", config),
-    ]
-
-    # Create repair operators
-    repair_operators = [
-        GreedyRepairOperator("Greedy", config),
-        RandomGreedyRepairOperator("RandomGreedy", config),
-        ObjectiveAwareRepairOperator("ObjectiveAware", config)
-    ]
-
-    print(f"\nALNS Configuration:")
-    print(f"  Destroy operators: {[op.name for op in destroy_operators]}")
-    print(f"  Repair operators: {[op.name for op in repair_operators]}")
-    print(f"  Total combinations: {len(destroy_operators)} × {len(repair_operators)} = {len(destroy_operators) * len(repair_operators)}")
-    print(f"  Max iterations: {config.max_iterations}")
-    print(f"  Max time: {config.max_time_seconds}s")
-
-    # Run ALNS
+    # Run ALNS (auto-instantiates all operators from registry)
     print("\nRunning ALNS...")
     print("-"*80)
-    alns = ALNS(initial_solution, destroy_operators, repair_operators, config)
+    alns = ALNS(initial_solution, config=config)
+
+    print(f"\nALNS Configuration:")
+    print(f"  Destroy operators: {[op.name for op in alns.destroy_operators]}")
+    print(f"  Repair operators: {[op.name for op in alns.repair_operators]}")
+    print(f"  Total combinations: {len(alns.destroy_operators)} × {len(alns.repair_operators)} = {len(alns.destroy_operators) * len(alns.repair_operators)}")
+    print(f"  Max iterations: {config.max_iterations}")
+    print(f"  Max time: {config.max_time_seconds}s")
+    print("-"*80)
+
     best_solution = alns.run()
     best_solution.write_to_file("alns")
 

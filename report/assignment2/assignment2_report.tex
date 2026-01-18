@@ -22,6 +22,7 @@
 \usepackage{scrlayer-scrpage}
 \usepackage{xcolor}
 \usepackage{changepage}
+\usepackage{hyperref}
 
 \renewcommand{\arraystretch}{1.4}
 \pagestyle{scrheadings}
@@ -45,11 +46,14 @@
 
 \section{General Setup and New Tools}
 
-The implementation continues in Python 3.13, building upon the framework established in Assignment 1. The following libraries were added for the second assignment:
+The implementation continues in Python 3.13, building upon the framework established in Assignment 1.
+The following libraries were added for the second assignment:
 
 \begin{itemize}
   \item \texttt{sklearn.cluster.KMeans} -- K-means clustering algorithm for spatial location clustering in enhanced construction heuristics
   \item \texttt{scipy.stats.wilcoxon} -- Wilcoxon signed-rank test for statistical comparison of paired algorithm results
+  \item \texttt{optuna} -- Bayesian optimization framework using Tree-structured Parzen Estimators for automated parameter tuning
+  \item \texttt{optuna-dashboard} -- Web-based visualization dashboard for monitoring Optuna optimization studies in real-time
 \end{itemize}
 
 \section{Extensions from Assignment 1}
@@ -62,9 +66,16 @@ Therefore, before starting to work on this assignment I was motivated to try and
 \subsection{Idea}
 I have tried out two enhancements to the greedy construction as well as a hybrid approach combining both enhancements:
 \begin{itemize}
-    \item \textbf{Flexible Pickup and Dropoff:} Instead of always inserting pickup and dropoff locations together, I have implemented a more flexible approach which evaluates all valid pickup positions and, for each pickup position, all valid dropoff positions. It selects the request with minimum total insertion cost across all position combinations, respecting capacity constraints. This approach is more time consuming so I have to implement multiple optimization such as maintaining a list of carried capacities at every step in the route and optimized based on that capacity constraint validation.
+    \item \textbf{Flexible Pickup and Dropoff:} Instead of always inserting pickup and dropoff locations together,
+    I have implemented a more flexible approach which evaluates all valid pickup positions and, for each pickup position,
+    all valid dropoff positions.
+    It selects the request with minimum total insertion cost across all position combinations, respecting capacity constraints.
+    This approach is more time consuming so I have to implement multiple optimization such as maintaining a list of
+    carried capacities at every step in the route and optimized based on that capacity constraint validation.
 
-    \item \textbf{Cluster Requests:} Uses K-means clustering on request centroids (midpoint of pickup-dropoff pairs) to pre-distribute requests to vehicles. Each vehicle serves only requests from its assigned cluster.
+    \item \textbf{Cluster Requests:} Uses K-means clustering on request centroids (midpoint of pickup-dropoff pairs)
+    to pre-distribute requests to vehicles.
+    Each vehicle serves only requests from its assigned cluster.
 
     \item \textbf{Hybrid:} Combines clustering with flexible dropoff placement within each cluster.
 \end{itemize}
@@ -164,44 +175,11 @@ the solution quality trade-off discussed earlier.
     \label{fig:runtime_flex_vs_hybrid}
 \end{figure}
 
-
-\section{Metaheuristic 1: Population-Based Simulated Annealing}
-% Choose from: Evolutionary/Genetic Algorithm, Ant Colony Optimization,
-% (Adaptive) Large Neighborhood Search, or Hybrid Algorithm
-% Compare to the SA from Assignment 1
-TODO
-
-\subsection{Idea}
-% TODO: Describe the main concept and motivation for choosing this algorithm
-
-\subsection{Algorithm Design}
-% TODO: Describe the algorithm structure
-% Include: representation, operators, key mechanisms
-
-\subsection{Implementation Details}
-% TODO: Describe specific implementation choices
-% Include: data structures, key functions
-
-\subsection{Parameters}
-% TODO: List all parameters with initial/default values
-% Example table:
-% \begin{table}[H]
-% \centering
-% \caption{Algorithm 1 Parameters}
-% \begin{tabular}{l l l}
-% \toprule
-% Parameter & Description & Default Value \\
-% \midrule
-% ... & ... & ... \\
-% \bottomrule
-% \end{tabular}
-% \end{table}
-
-\section{Metaheuristic 2: ALNS}
+\section{Metaheuristic: ALNS}
 
 Adaptive Large Neighborhood Search iteratively destroys and repairs parts of the current solution sampling from sets
  of operators.
-Operator selection is based on a wheel roulette choice based on adaptive weights that favor operators 
+Operator selection is based on a wheel roulette choice based on adaptive weights that favor operators
 discovering better solutions, balancing exploration and exploitation throughout the search.
 The algorithm combines this with simulated annealing acceptance as suggested in the lecture to escape local optima.
 
@@ -229,13 +207,13 @@ Each destroy operator removes $q$ requests, where $q$ is sampled uniformly from 
 \end{itemize}
 
 \subsection{Adaptive Weight Mechanism}
-Operators are scored based on solution quality: to reward operators that discover new best solutions, they're awarded 
-10 points, while accepted solutions award 1 point. 
-Rejected solutions are implicitly awarded 0 points. 
-Weights are updated every 100 iterations using the adaptive formula 
+Operators are scored based on solution quality: to reward operators that discover new best solutions, they're awarded
+10 points, while accepted solutions award 1 point.
+Rejected solutions are implicitly awarded 0 points.
+Weights are updated every 100 iterations using the adaptive formula
 \[\rho_i \leftarrow \rho_i \cdot (1-\gamma) + \gamma \cdot \frac{s_i}{a_i}\] where $\rho_i$ is the weight, $\gamma$
 is the reaction factor, $s_i$ is the total score, and $a_i$ is the number of applications.
-This mechanism rewards operators that consistently find improvements while maintaining exploration thanks to non-zero 
+This mechanism rewards operators that consistently find improvements while maintaining exploration thanks to non-zero
 initial weights.
 Operator selection uses roulette wheel selection with probabilities proportional to current weights.
 
@@ -405,112 +383,254 @@ However, they're hard to fine-tune and as shown the choice and combination of op
 
 \section{Automated Parameter Tuning}
 
-\subsection{Tuning Methodology}
-% TODO: Describe the parameter tuning approach used
-% Options: Grid search, Random search, irace, ParamILS, SMAC, etc.
+For automated parameter tuning, I decided to use \textbf{Optuna}\footnote{\url{https://optuna.org/}},
+a Python-based Bayesian optimization framework using Tree-structured Parzen Estimators (TPE).
+Optuna was selected over alternative advanced frameworks suggested in the lecture such as SMAC3 due to its simpler API,
+straightforward parallelization, and suitability for our parameter space size (8 tunable parameters).
+While both frameworks offer comparable optimization efficiency, Optuna's minimal integration overhead and native support
+for parallel evaluation through a simple \texttt{n\_jobs} parameter made it more practical given time constraints.
+The TPE algorithm models the distribution of good and bad configurations separately, using this knowledge to suggest
+promising parameter combinations that balance exploration of uncertain regions with exploitation of known good areas.
+This approach is more efficient than grid or random search, as it learns from previous evaluations to guide the search
+toward optimal configurations, typically requiring fewer trials to converge to high-quality parameter settings.
+Additionally, Optuna offers out-of-the-box visualizations that can be stored in a sqlite database that I will be using
+in this section of the report.
+A secondary reason for chossing Optuna was a recommendation I received from another student who was using Optuna
+for fine-tuning an algorithm for a heuristics optimization problem in her Bachelor's Thesis.
 
 \subsection{Tuning Setup}
-% TODO: Describe:
-% - Parameter ranges explored
-% - Tuning instances used
-% - Evaluation metrics
-% - Computational resources (e.g., cluster usage)
 
-\subsection{Algorithm 1 Tuning Results}
-% TODO: Present tuning results for first algorithm
-% Include: parameter configurations tested, best found parameters
-% Show results per instance size
+The tuning process used 5 training instances per instance size.
+For instances of size 50 the timeout of 30 seconds was used and the total runtime of the fine-tuning was around 18
+minutes which proved that the Optuna achieves a good parallelization given that it tried 50 trials (configurations)
+for 5 training instances $\rightarrow$ 250 ALNS runs each limited to 30 seconds $\rightarrow$ 125 minutes sequentially.
+There are 8 cpu cores on my machine so the maximal concurrency fold factor is 8 meaning that optimally parallelized
+fine-tuning would have run for 15.6 minutes.
+Together with the overhead of initialization, TPE sampler updated and processes spawning and management 18 minutes is
+a good runtime.
 
-\subsection{Algorithm 2 Tuning Results}
-% TODO: Present tuning results for second algorithm
+For instances of size 100, 200, 500 and 1000 I used the timeout of 60 seconds per instance to let it explore the larger
+search space better.
+Each of these completed in around 40 minutes.
+Optuna was executed with 50 trials using TPE sampler with seed 42 for reproducibility.
+The objective function minimized the average objective value across all training instances.
+Eight \texttt{ALNS} parameters were tuned while three parameters
+(\texttt{max\_iterations}=10000, \texttt{max\_time\_seconds}=60, \texttt{max\_iterations\_without\_improvement}=1000)
+remained fixed to ensure consistent termination criteria.
+
+\begin{table}[H]
+\centering
+\caption{ALNS Tuning Parameter Search Space}
+\begin{tabular}{l l l l}
+\toprule
+Parameter & Type & Search Range & Default \\
+\midrule
+\texttt{weight\_update\_period} & Integer & [50, 500] & 100 \\
+\texttt{reaction\_factor} ($\gamma$) & Float & [0.01, 0.5] & 0.1 \\
+\texttt{min\_removal\_percentage} & Float & [0.05, 0.2] & 0.1 \\
+\texttt{max\_removal\_percentage} & Float & [0.3, 0.6] & 0.4 \\
+\texttt{initial\_temperature} & Float & [50.0, 500.0] & 100.0 \\
+\texttt{cooling\_rate} & Float & [0.95, 0.9999] & 0.99 \\
+\texttt{score\_new\_best} & Float & [5.0, 20.0] & 10.0 \\
+\texttt{score\_accepted} & Float & [0.5, 2.0] & 1.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{ALNS Tuning Results}
+
+The tuning process explored 50 different parameter configurations for each instance size, using TPE's Bayesian
+optimization to navigate the search space.
+For instance size 50, the best configuration achieved an average objective value of \textbf{1529.0} across the 5 training instances.
+Table~\ref{tab:tuned_params_n50} presents the optimized parameters compared to default values.
+
+\begin{table}[H]
+\centering
+\caption{Tuned ALNS Parameters for Instance Size n=50}
+\label{tab:tuned_params_n50}
+\begin{tabular}{l l l l}
+\toprule
+Parameter & Default & Tuned Value & Change \\
+\midrule
+\texttt{weight\_update\_period} & 100 & 275 & +175\% \\
+\texttt{reaction\_factor} ($\gamma$) & 0.1 & 0.478 & +378\% \\
+\texttt{min\_removal\_percentage} & 0.1 & 0.094 & -6\% \\
+\texttt{max\_removal\_percentage} & 0.4 & 0.530 & +33\% \\
+\texttt{initial\_temperature} & 100.0 & 437.5 & +338\% \\
+\texttt{cooling\_rate} & 0.99 & 0.956 & -3\% \\
+\texttt{score\_new\_best} & 10.0 & 13.4 & +34\% \\
+\texttt{score\_accepted} & 1.0 & 1.59 & +59\% \\
+\midrule
+\textbf{Best Objective} & \multicolumn{3}{l}{1529.0} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The tuning results reveal several key insights.
+The significantly increased \texttt{reaction\_factor} (0.478 vs 0.1) suggests faster adaptation to operator performance
+is beneficial for smaller instances, allowing the algorithm to quickly identify and exploit successful operators.
+The much larger \texttt{weight\_update\_period} (275 vs 100) indicates that less frequent weight updates work better,
+possibly because more iterations are needed to accumulate meaningful statistics before adjusting operator weights.
+The substantially higher \texttt{initial\_temperature} (437.5 vs 100.0) combined with faster \texttt{cooling\_rate}
+(0.956 vs 0.99) creates a steeper temperature decline, enabling early exploration followed by convergence and local exploitation.
+The increased scoring rewards (\texttt{score\_new\_best}=13.4, \texttt{score\_accepted}=1.59) amplify the distinction
+between finding new best solutions and accepting improvements, encouraging operators that discover global improvements
+rather than incremental gains.
+The removal percentage range widened slightly (9.4\%-53\% vs 10\%-40\%), giving operators more flexibility in neighborhood size.
+Overall, the tuned configuration favors faster adaptation, more aggressive exploration early on, and stronger
+differentiation of operator performance compared to conservative defaults.
+TODO
+% Fill in tuning configurations for the rest of the instances sizes, maybe plot tendencies of different params per instance size
+
+\subsection{Simulated Annealing Tuning Results}
+% Present tuning results for second algorithm
+Since tuning for the first assignment was done manually and with limited number of configurations I decided to
+fine-tune the simulated annealing solution using Optuna.
+First, the improved greedy construction was used as the initialization step of simulated annealing to help it start
+from a better solution.
+Then, the following parameters and ranges were fine-tuned on instances of sizes 50, 100, 200, 500 and 1000.
+TODO
 
 \subsection{Instance Size Scalability}
-% TODO: Report which instance sizes can be solved in reasonable time
 
-\section{Experimental Results}
-ABCD
+The \texttt{FlexiblePickupAndDropoff} construction heuristic scales reasonably well with instance size,
+with runtime growing polynomially as it evaluates insertion positions for each request.
+For instances up to size 1000, construction completes within 20-30 seconds, making it suitable as an initial solution
+generator for all tested instance sizes.
 
-\subsection{Experimental Setup}
-% TODO: Describe test instances, number of runs, time limits
+For \texttt{ALNS}, runtime is primarily controlled by stopping criteria: \texttt{max\_iterations}, \texttt{max\_time\_seconds}, or \texttt{max\_iterations\_without\_improvement}.
+While these parameters theoretically allow solving arbitrarily large instances by adjusting time budgets,
+practical scalability considerations arise from two factors.
+First, individual destroy and repair operations become more computationally expensive as instance size grows—evaluating
+feasible insertion positions and calculating objective values for larger solutions requires more iterations through
+longer routes.
+Second, the search space expands exponentially with instance size, requiring more iterations to achieve comparable
+solution quality.
+For the tuning experiments, I used 30-second timeouts for instances of size 50 and 60-second timeouts for sizes 100-1000,
+acknowledging that larger instances benefit from longer exploration time.
+The tuned parameters from smaller instances (n=50) may not transfer optimally to larger instances, as the balance
+between exploration and exploitation shifts with search space size.
+Based on conducted experiments, instances up to size 1000 can be solved with reasonable quality within 5-minute time
+budgets, while larger instances would require proportionally longer runtimes or instance-specific parameter tuning
+to maintain solution quality.
 
-\subsection{Best Algorithm from Assignment 1}
-% TODO: Present results of the best algorithm from Assignment 1 on test instances
-% Include: mean objective, std dev, runtime
-
-\subsection{Best Algorithm from Assignment 2}
-% TODO: Present results of the better tuned algorithm from this assignment
-% Justify the choice if results were inconclusive
-
-\subsection{Comparison Across Instance Sizes}
-% TODO: Show how algorithms scale with instance size
-% Include tables and figures
-
-\subsection{Solution Quality Over Time}
-% TODO: Include convergence plots showing quality over iterations/time
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=1\linewidth]{convergence_plot.png}
-%     \caption{Solution Quality Over Time}
-%     \label{fig:convergence}
-% \end{figure}
-
-% ============================================================
-% 8. Statistical Comparison (Task 5)
-% ============================================================
 \section{Statistical Comparison}
 
-\subsection{Methodology}
-% TODO: Describe statistical tests used (e.g., Wilcoxon signed-rank test)
-% Reference the Statistical Testing Jupyter notebook
+\subsection{Experimental Setup}
+
+All experiments were conducted on the test instances provided on the course website, on instance sizes 50, 100, 200, 500, and 1000 requests.
+For each instance size, all 30 available test instances were evaluated to ensure robust statistical analysis.
+The experimental evaluation focuses on comparing the two best approaches from each assignment:
+tuned Simulated Annealing and tuned ALNS.
+
+The comparison methodology again leverages the \texttt{algorithm\_comparison.py} framework developed for Assignment 1
+and enhanced throughout Assignment 2, which provides:
+\begin{itemize}
+    \item \textbf{Pairwise Comparison:} Each algorithm is run on identical test instances, enabling direct comparison of solution quality
+    \item \textbf{Statistical Testing:} Wilcoxon signed-rank test is applied to determine whether observed differences are statistically significant (p < 0.05)
+    \item \textbf{Performance Metrics:} Mean objective value, standard deviation, win/loss/tie counts, and construction time are recorded
+    \item \textbf{Visualization:} Comparison plots show objective value trends across instance sizes, and histograms
+    visualize the distribution of objective value differences between algorithms to indicate whether p-test is applicable
+\end{itemize}
+
+Both metaheuristics use \texttt{FlexiblePickupAndDropoffConstructionHeuristic} for initialization, ensuring that any
+performance differences stem from the metaheuristic search rather than initial solution quality.
+Time budgets were set consistently with the tuning phase: 30 seconds for n=50 instances and 60 seconds for all
+larger instances (n=100, 200, 500, 1000).
+
+Each algorithm uses its instance-size-specific tuned parameters obtained from Optuna optimization (Section~\ref{sec:alns_tuning_results} for ALNS and Section~\ref{sec:sa_tuning_results} for SA), allowing fair comparison between optimally configured approaches rather than default parameter settings.
 
 \subsection{Comparison: Best from Assignment 1 vs. Best from Assignment 2}
-% TODO: Present statistical test results
-% Include: p-values, effect sizes, conclusions
+TODO
+Figure~\ref{fig:sa_vs_alns_comparison} presents the comprehensive comparison between tuned Simulated Annealing and tuned ALNS across all instance sizes.
 
-\subsection{Variance Analysis}
-% TODO: Include box plots or violin plots showing solution variance
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=1\linewidth]{boxplot_comparison.png}
-%     \caption{Solution Quality Distribution Comparison}
-%     \label{fig:boxplot}
-% \end{figure}
+\begin{figure}[H]
+    \centering
+%    \includegraphics[width=1\linewidth]{SA_vs_ALNS_50-100-200-500-1000_comparison}
+    \caption{Tuned SA vs Tuned ALNS: Objective Value Comparison Across Instance Sizes}
+    \label{fig:sa_vs_alns_comparison}
+\end{figure}
 
-\subsection{Summary of Statistical Findings}
-% TODO: Summarize which algorithm is significantly better (if any)
+TODO
+% Analyze the comparison results, Wilcoxon test p-values for each instance size, wins/losses/ties
+
+To better understand the distribution of performance differences and validate the applicability of the Wilcoxon
+signed-rank test, Figure~\ref{fig:sa_vs_alns_histogram} shows histograms of objective value differences (SA minus ALNS) for each instance size.
+
+\begin{figure}[H]
+    \centering
+%    \includegraphics[width=1\linewidth]{SA_vs_ALNS_objective_differences_histogram}
+    \caption{Distribution of Objective Value Differences (SA - ALNS) Across Instance Sizes}
+    \label{fig:sa_vs_alns_histogram}
+\end{figure}
+
+TODO
+% Discuss the distribution characteristics and what they reveal about algorithm performance consistency
 
 % ============================================================
 % 9. Conclusion
 % ============================================================
-\section{Conclusion}
-% TODO: Summarize main findings and contributions
+\section{Reflection}
 
 \subsection{Key Learnings}
-% TODO: Reflect on experiences from both programming assignments
-% What worked well? What was challenging?
+
+The most valuable aspect was building reusable infrastructure early.
+The \texttt{algorithm\_comparison.py} framework from Assignment 1 made systematic evaluation across algorithms and instance sizes straightforward, with consistent statistical testing built in.
+Optuna eliminated manual parameter tuning completely—it found better configurations than my intuition-based defaults, and I could just let it run overnight.
+
+Starting with better construction heuristics before jumping into metaheuristics was the right thing to do.
+The FlexiblePickupDropoff improvement gave strong initial solutions that made metaheuristics much more effective.
+For practical applications, construction quality might matter as much as metaheuristic sophistication.
+
+Visualization was critical for both understanding and debugging.
+Plotting different angles of the data (objective comparisons, fairness distributions, operator behavior) revealed insights that tables of numbers never would.
+Multiple times I caught bugs because plots looked suspicious—plotting became my main debugging tool.
+
+The main challenges were all about infinite choices and limited time.
+Every decision spawned countless possibilities: which fairness metric, which operators, which parameter ranges.
+With 3×3 operators, 8 parameters, and 5 instance sizes, exhaustive exploration was impossible.
+I had to make pragmatic choices without certainty they were optimal.
+
+Runtime was the other major constraint.
+Testing on large instances took 30-60 minutes per run, making rapid iteration impossible during development.
+This pushed most work to smaller instances, with uncertainty about whether findings would generalize.
+
+As algorithms got more sophisticated (Greedy → SA → ALNS with adaptive weights → tuned ALNS), they became more effective but also more black-boxy.
+Understanding \textit{why} something worked became harder, making improvements difficult compared to just trying things.
+
+The provided instances seemed relatively balanced in distribution and capacity ratios.
+This raised questions about robustness: would these algorithms handle pathological cases like highly clustered requests or extreme capacity constraints?
+Performance on "normal" instances might not predict behavior on truly difficult problem structures.
 
 \subsection{Algorithm Design Insights}
-% TODO: Discuss insights about metaheuristic design for SCF-PDP
+
+The fundamental challenge is balancing distance and fairness—they pull in opposite directions.
+Minimizing distance concentrates requests on efficient routes, while fairness demands balanced distribution.
+No algorithm perfectly reconciled both; the penalty weight $\gamma$ just determines where you fall on the tradeoff curve.
+
+The fairness investigation revealed something counterintuitive: operator diversity matters more than operator sophistication.
+Simple combinations (Random + WorstCost) often outperformed sophisticated operators explicitly designed for fairness.
+Having multiple operators prevents premature convergence and lets the adaptive mechanism learn what works.
+
+This creates an evaluation dilemma: should operators overlap in functionality or be completely distinct?
+Do three removal operators provide more benefit than two?
+How do you evaluate operator quality when one operator might enable others to work better?
+With $n$ operators yielding $2^n - 1$ combinations, exhaustive testing is infeasible, leaving much to educated guessing.
+
+Parameters tuned on small instances (n=50) likely don't transfer well to large instances (n=1000) because the exploration-exploitation balance shifts with search space size.
+Instance-specific tuning would be ideal but computationally expensive.
 
 \subsection{Future Improvements}
-% TODO: What would you do differently or explore further?
 
-% ============================================================
-% Appendices (optional)
-% ============================================================
-% \appendix
-% \section{Additional Plots}
-% \section{Parameter Tables}
-% \section{Code Snippets}
+The most obvious improvement would be tracking operator runtime in ALNS and penalizing slow operators in the adaptive weights.
+Currently expensive operators reduce total iteration counts without penalty.
 
-% ============================================================
-% Bibliography (optional)
-% ============================================================
-% \bibliographystyle{plain}
-% \begin{thebibliography}{9}
-% \bibitem{}
-% \textit{},
-% \url{}
-% \end{thebibliography}
+For evaluation, generating synthetic instances with extreme characteristics (tight clusters, outliers, capacity constraints) would test robustness beyond the provided instances.
+Systematically evaluating operators would reveal which ones actually matter versus which are redundant.
+
+Parameter tuning could be improved by using transfer learning—initialize large instance tuning with small instance results rather than starting from scratch.
+More trials (100-200 instead of 50) might find better configurations, though with diminishing returns.
+
+Despite limitations, the assignment showed that well-designed metaheuristics with automated tuning can produce high-quality solutions to complex problems within practical time.
 
 \end{document}

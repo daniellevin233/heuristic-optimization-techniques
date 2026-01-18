@@ -17,7 +17,7 @@ from dataclasses import dataclass
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from tqdm import tqdm
-from scipy.stats import wilcoxon
+from scipy.stats import wilcoxon, norm
 
 from src.instance import SCFPDPInstance
 from src.solution import SCFPDPSolution
@@ -372,6 +372,77 @@ def print_comparison_table(summary: ExperimentSummary) -> None:
     print(f"  - p-value: Wilcoxon signed-rank test (p<0.05)")
     print(f"  - Total instances tested: {summary.total_instances}")
     print("="*100 + "\n")
+
+
+def plot_distribution_histograms(summary: ExperimentSummary, save_plot: bool = False) -> None:
+    """
+    Plot histograms of objective differences to assess normality.
+
+    This helps justify using Wilcoxon (non-parametric) vs t-test (parametric).
+    If distributions are not normal, Wilcoxon is the appropriate test.
+
+    Args:
+        summary: ExperimentSummary containing all comparison results
+        save_plot: Whether to save the plot to file
+    """
+    if not summary.comparison_results:
+        print("No results to plot")
+        return
+
+    n_sizes = len(summary.comparison_results)
+    alg1_name = summary.comparison_results[0].algorithm1_name
+    alg2_name = summary.comparison_results[0].algorithm2_name
+
+    # Create subplots (one per instance size)
+    fig, axes = plt.subplots(1, n_sizes, figsize=(6 * n_sizes, 5))
+    if n_sizes == 1:
+        axes = [axes]  # Make iterable
+
+    fig.suptitle(f'Distribution of Objective Differences: {alg1_name} - {alg2_name}',
+                 fontsize=14, fontweight='bold')
+
+    for ax, comp in zip(axes, summary.comparison_results):
+        if comp.percent_diffs_array is None:
+            continue
+
+        # Get difference data (use percentage differences for interpretability)
+        diffs = comp.percent_diffs_array
+
+        # Plot histogram
+        ax.hist(diffs, bins=min(20, len(diffs) // 2), density=True, alpha=0.6,
+                color='skyblue', edgecolor='black', label='Data')
+
+        # Fit and plot normal distribution
+        mu, std = norm.fit(diffs)
+        xmin, xmax = ax.get_xlim()
+        x = np.linspace(xmin, xmax, 201)
+        y = norm.pdf(x, mu, std)
+        ax.plot(x, y, 'r-', linewidth=2, label=f'Normal fit\n(μ={mu:.2f}, σ={std:.2f})')
+
+        # Add vertical line at mean
+        ax.axvline(mu, color='red', linestyle='--', linewidth=1.5, alpha=0.5)
+
+        ax.set_xlabel('% Difference', fontsize=11)
+        ax.set_ylabel('Density', fontsize=11)
+        ax.set_title(f'n={comp.instance_size}', fontsize=12, fontweight='bold')
+        ax.legend(fontsize=9)
+        ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+
+    if save_plot:
+        project_root = find_project_root()
+        plots_dir = project_root / "plots"
+        plots_dir.mkdir(exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        instance_sizes_str = '-'.join([comp.instance_size for comp in summary.comparison_results])
+        filename = plots_dir / f"{alg1_name}_vs_{alg2_name}_distributions_{instance_sizes_str}_{timestamp}.png"
+        plt.savefig(filename, dpi=300, bbox_inches='tight')
+        print(f"Distribution plot saved as '{filename}'")
+        plt.close()
+    else:
+        plt.show()
 
 
 def plot_comparison_results(summary: ExperimentSummary, save_plot: bool = False) -> None:

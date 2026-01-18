@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from pathlib import Path
+import json
 
 
 @dataclass
@@ -37,3 +39,82 @@ class ALNSConfig:
 
     # ===== LOGGING =====
     log_interval: int = 100  # Print progress every N iterations
+
+    @staticmethod
+    def from_tuned_params(
+        instance_size: int,
+        tuning_dir: Path = None,
+        **override_params
+    ) -> 'ALNSConfig':
+        """
+        Load tuned parameters for a given instance size from tuning directory.
+
+        If exact size not found and fallback_to_smaller=True, searches for the largest
+        available size smaller than the requested size.
+        """
+        if tuning_dir is None:
+            from src.utils import find_project_root
+            project_root = find_project_root()
+            tuning_dir = project_root / "src" / "algorithms" / "alns" / "tuning"
+
+        # Try exact size first
+        config_file = tuning_dir / f"tuned_params_n{instance_size}.json"
+
+        if config_file.exists():
+            print(f"[ALNS Config] Loading tuned parameters for n={instance_size}")
+            print(f"[ALNS Config] Config file: {config_file}")
+        else:
+            # Find all available tuned configs
+            available_configs = sorted(tuning_dir.glob("tuned_params_n*.json"))
+
+            # Extract sizes from filenames
+            available_sizes = []
+            for file in available_configs:
+                try:
+                    # Extract size from filename like "tuned_params_n50.json" or "tuned_params_n50_20260117_180530.json"
+                    filename = file.stem  # Remove .json
+                    if "_" in filename and not filename.endswith("_n" + str(instance_size)):
+                        # Skip timestamped versions if non-timestamped exists
+                        base_file = tuning_dir / (filename.split("_")[0] + "_" + filename.split("_")[1] + ".json")
+                        if base_file.exists():
+                            continue
+
+                    size_str = filename.split("_n")[1].split("_")[0]
+                    size = int(size_str)
+                    if size < instance_size:
+                        available_sizes.append((size, file))
+                except (IndexError, ValueError):
+                    continue
+
+            if available_sizes:
+                # Use largest size smaller than target
+                fallback_size, config_file = max(available_sizes, key=lambda x: x[0])
+                print(f"[ALNS Config] No tuned parameters found for n={instance_size}")
+                print(f"[ALNS Config] Falling back to n={fallback_size} (next smaller available size)")
+                print(f"[ALNS Config] Config file: {config_file}")
+            else:
+                raise FileNotFoundError(
+                    f"No tuned parameters found for n={instance_size} or any smaller size in {tuning_dir}"
+                )
+
+        # Load the config file
+        with open(config_file, 'r') as f:
+            tuning_result = json.load(f)
+
+        best_params = tuning_result["best_params"]
+
+        # Create config with tuned parameters
+        config = ALNSConfig(
+            weight_update_period=best_params["weight_update_period"],
+            reaction_factor=best_params["reaction_factor"],
+            min_removal_percentage=best_params["min_removal_pct"],
+            max_removal_percentage=best_params["max_removal_pct"],
+            initial_temperature=best_params["initial_temp"],
+            cooling_rate=best_params["cooling_rate"],
+            score_new_best=best_params["score_new_best"],
+            score_accepted=best_params["score_accepted"],
+            **override_params
+        )
+
+        print(f"[ALNS Config] Loaded tuned parameters successfully")
+        return config

@@ -5,3 +5,5 @@ line_profiler
 scipy
 tqdm
 scikit-learn
+optuna
+optuna-dashboard

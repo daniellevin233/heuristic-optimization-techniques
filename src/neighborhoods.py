@@ -50,17 +50,23 @@ class InsertNeighborhood(Neighborhood):
         route_idx, route = res
         if len(route) < 2:
             return None, None
-        pos_from = random.randint(0, len(route) - 1)
-        pos_to = random.randint(0, len(route))
-        if pos_from == pos_to:
-            return None, None
-        neighbor = solution.copy()
-        move = InsertNeighborhood.Move(route_idx, pos_from, pos_to)
-        try:
-            move.move(neighbor)
-            return move, neighbor
-        except ValueError:
-            return None, None
+
+        # Retry logic: try up to 50 times to find a valid move
+        max_retries = 50
+        for attempt in range(max_retries):
+            pos_from = random.randint(0, len(route) - 1)
+            pos_to = random.randint(0, len(route))
+            if pos_from == pos_to:
+                continue
+            neighbor = solution.copy()
+            move = InsertNeighborhood.Move(route_idx, pos_from, pos_to)
+            try:
+                move.move(neighbor)
+                return move, neighbor
+            except ValueError:
+                continue
+
+        return None, None
 
     @staticmethod
     def generate_neighbors(solution: SCFPDPSolution) -> Generator[SCFPDPSolution, None, None]:
@@ -98,14 +104,20 @@ class SwapNeighborhood(Neighborhood):
         route_idx, route = res
         if len(route) < 2:
             return None, None
-        i, j = sorted(random.sample(range(len(route)), 2))
-        neighbor = solution.copy()
-        move = SwapNeighborhood.Move(route_idx, i, j)
-        try:
-            move.move(neighbor)
-            return move, neighbor
-        except ValueError:
-            return None, None
+
+        # Retry logic: try up to 50 times to find a valid move
+        max_retries = 50
+        for attempt in range(max_retries):
+            i, j = sorted(random.sample(range(len(route)), 2))
+            neighbor = solution.copy()
+            move = SwapNeighborhood.Move(route_idx, i, j)
+            try:
+                move.move(neighbor)
+                return move, neighbor
+            except ValueError:
+                continue
+
+        return None, None
 
     @staticmethod
     def generate_neighbors(solution: SCFPDPSolution) -> Generator[SCFPDPSolution, None, None]:
@@ -145,16 +157,23 @@ class RelocateNeighborhood(Neighborhood):
         route_from_idx, route_from = res
         if len(route_from) == 0:
             return None, None
-        pos_from = random.randint(0, len(route_from) - 1)
-        route_to_idx = random.randint(0, len(solution.routes) - 1)
-        pos_to = random.randint(0, len(solution.routes[route_to_idx]))
-        neighbor = solution.copy()
-        move = RelocateNeighborhood.Move(route_from_idx, pos_from, route_to_idx, pos_to)
-        try:
-            move.move(neighbor)
-            return move, neighbor
-        except ValueError:
-            return None, None
+
+        # Retry logic: try up to 50 times to find a valid move
+        max_retries = 50
+        for attempt in range(max_retries):
+            pos_from = random.randint(0, len(route_from) - 1)
+            route_to_idx = random.randint(0, len(solution.routes) - 1)
+            pos_to = random.randint(0, len(solution.routes[route_to_idx]))
+            neighbor = solution.copy()
+            move = RelocateNeighborhood.Move(route_from_idx, pos_from, route_to_idx, pos_to)
+            try:
+                move.move(neighbor)
+                return move, neighbor
+            except ValueError:
+                continue  # Try again with different random positions
+
+        # If all retries failed, return None
+        return None, None
 
     @staticmethod
     def generate_neighbors(solution: SCFPDPSolution) -> Generator[SCFPDPSolution, None, None]:
